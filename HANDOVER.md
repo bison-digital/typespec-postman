@@ -80,6 +80,16 @@ Everything here was measured. Read it before changing the emitter.
 
 ## Open
 
+- **What upgrading to the unreleased pair will cost, measured on 2026-09-16** by pointing
+  `node_modules/typespec-hono` at the local repo and running the system suites:
+  - `SERVER_DEFECTS` drops from 35 entries to 2. The routing fixes land, so every `routes` and
+    `parameters/path` entry must be deleted the day a release carries them, which is what the
+    both-directions arm reports.
+  - **`test/run/` goes 500 on every request**, because typespec-hono's unreleased handler contract is
+    breaking: a handler returns `{ status, body, headers }` and `deps.respond` is gone. The fixtures in
+    `test/run/` and `test/support/server.ts` have to follow that before the dependency is bumped. This
+    is the upgrade's cost, not a defect: on the pinned 0.22.0 all 43 system tests pass.
+
 - **GitHub still serves the pre-rewrite commits by SHA.** `test/provenance.test.ts` spelled the first
   consumer's names in plain text from the first commit. The tree was fixed, and history was rewritten
   with `git filter-repo --replace-text` and force-pushed on 2026-09-15 (no object in the new history
