@@ -63,11 +63,13 @@ Everything here was measured. Read it before changing the emitter.
 - **typespec-http-zod refused a JSON multipart part. Fixed on its `main` (`4443274`), unreleased.**
   `HttpPart<Address>` arrives as JSON text with `Content-Type: application/json`; measured 400 on the
   Postman CLI's bytes. No corpus scenario sends one (each also has a file part), so nothing here lists it.
-- **typespec-hono refuses 34 conformant corpus requests. Open, reported to its owner.** Path expansions
+- **typespec-hono refused 34 conformant corpus requests. Fixed on its `main` (`a53d8f3`), unreleased.** Path expansions
   (`{.x}`, `{;x}`, `{/x}`, `primitive{x}`, and `optional{/name}` in `parameters/path`) are mounted with
   the operator dropped, and a literal query string is mounted inside the router path: 31 answer 404,
   including the exact URIs http-specs' own mock declares. A form-expanded record or model query answers
-  400 (3). `SERVER_DEFECTS` names each request.
+  400 (3). `SERVER_DEFECTS` names each request until a released pair carries the fix, and the arm
+  requiring every listed defect to occur fails the day one does. typespec-hono now mounts from the
+  library's `pathSegments`, and every mock URI reaches its handler.
 
 ## Open
 
