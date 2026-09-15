@@ -270,20 +270,25 @@ async function judgeCollection(
 				unsendable.push(`${current}: fetch cannot send a ${request.method} body`);
 				return;
 			}
-			let body: string | FormData | undefined;
+			let body: string | undefined;
 			if (mode === "raw") body = request.body?.raw;
 			if (mode === "formdata") {
-				const form = new FormData();
-				for (const part of parts) {
-					form.append(
-						part.key,
-						part.contentType === undefined
-							? (part.value ?? "")
-							: new Blob([part.value ?? ""], { type: part.contentType }),
-					);
-				}
-				body = form;
-				headers.delete("content-type");
+				/**
+				 * **The bytes the Postman CLI sends, not a `FormData` built to resemble them.** Postman
+				 * writes a text part with its `Content-Type` and no filename, which a server's form parser
+				 * hands over as a string. Appending a `Blob` to carry the content type instead produces a
+				 * part WITH a filename, which arrives as a file, and grades a request no client sends.
+				 * Captured from a CLI run against a listening socket.
+				 */
+				const boundary = "--------------------------postman-corpus-judge";
+				body =
+					parts
+						.map(
+							(part) =>
+								`--${boundary}\r\nContent-Disposition: form-data; name="${part.key}"\r\n${part.contentType === undefined ? "" : `Content-Type: ${part.contentType}\r\n`}\r\n${part.value ?? ""}\r\n`,
+						)
+						.join("") + `--${boundary}--\r\n`;
+				headers.set("content-type", `multipart/form-data; boundary=${boundary}`);
 			}
 			await app.request(`/${path}${query === "" ? "" : `?${query}`}`, {
 				method: request.method,
