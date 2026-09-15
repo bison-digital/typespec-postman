@@ -31,11 +31,11 @@ Everything here was measured. Read it before changing the emitter.
 
 ## Findings in sibling packages, not fixed here
 
-- **typespec-hono makes optional auth required.** `@useAuth(NoAuth | X)` publishes `security: [{}, {X}]`,
-  but `src/security.ts` drops the `{}` alternative, so the generated route calls
-  `deps.authorize([{X}])` beside `deps.context(c, "none")`. An `authorize` that does its documented job
-  refuses anonymous callers the contract allows. Read from typespec-hono's own corpus output
-  (`authentication/noauth/union`); a request arm has not been written yet.
+- **typespec-hono made optional auth required. Fixed on its `main` (`d180e18`), unreleased.**
+  `@useAuth(NoAuth | X)` publishes `security: [{}, {X}]`, and the generated gate dropped the `{}`, so a
+  correct `authorize` refused anonymous callers the contract allows. Measured by request on
+  `authentication/noauth/union` (401). The gate now passes the empty requirement; this emitter's run
+  suite never depended on it, because it sends the credentialed alternative.
 - **typespec-http-zod refuses a multipart text part carrying a number.** `payload/multipart`
   `non-string-float` declares `HttpPart<{ @body body: float64; @header contentType: "text/plain" }>`;
   the validator is `z.number()`, so the text part the scenario documents is refused with a 400. Named in
