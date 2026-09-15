@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -17,7 +18,7 @@ import { describe, expect, it } from "vitest";
  * repository the reader cannot see explains nothing; a dependency naming a registry they cannot
  * reach does not install at all.
  *
- * Four classes are guarded.
+ * Four classes are guarded, the fourth by digest.
  */
 
 const packageRoot = fileURLToPath(new URL("..", import.meta.url));
@@ -56,17 +57,68 @@ const FORBIDDEN: readonly RegExp[] = [
 	/@modelcontextprotocol\/sdk\b/,
 	/\bMcpAgent\b/,
 	/\bagents\/mcp\b/,
-	// (d) The first consumer's private spec, which this package was verified against and must never
-	//     quote: its product, repository and scheme names.
-	/\bredacted-term\b/,
-	/\bredacted-term\b/,
-	/\bredacted-term\b/,
-	/\bredacted-term\b/,
-	/\bredacted-term\b/,
-	/\bredacted-term\b/,
-	/\bredacted-term\b/,
-	/\bredacted-term\b/,
 ];
+
+/**
+ * (d) The first consumer's private spec, which this package was verified against and must never
+ *     quote: its product, repository and scheme names.
+ *
+ * **Held as SHA-256 digests of the exact terms, never as the terms.** A guard that spells a private
+ * name publishes it, and the first version of this list did exactly that in a public repository. A
+ * digest names nothing, and a tracked file that carries the term still hashes to it. Each term is a
+ * word, or a hyphen-joined run of words, as {@link termsOf} reads a line.
+ */
+const FORBIDDEN_DIGESTS: ReadonlySet<string> = new Set([
+	"7c4f01b9770663e38975ccb451cd12daeb296a57a4ae302e06351905d80234bf",
+	"faa11e532b06ac71174fd097ba2d84ac63e0da04232905818c2f8f18d25ff0a5",
+	"39d0d3d571e88b8c0c451b69099c055c3d338109fb5fec4141597507f7209ebf",
+	"c52d4ec9ecf44fad6e5244abd2b9aba13d3d25a97453a95ad5641705e4cdfa0f",
+	"93040afde9f39a8ddff1cec4980f84d999ba770317f519460299eda48c5ca56b",
+	"12ff97f65f937c37234932bf59faf2ead78100e6bc2926731b074e39712aead3",
+	"b3aa250265e58a7f1cb449acf14aa9093200172fc82b20cfbfa6bf7ffdb432b0",
+	"cbc2d2b20d29284de1b47ea40edb9731e035bfe719368f52ca3c984525569367",
+]);
+
+/**
+ * A term that names nothing, scanned for beside the private ones, so the positive control can plant a
+ * term the matcher must find without the control spelling a private one. Assembled at run time, so no
+ * tracked file carries it as one word.
+ */
+const CANARY = ["provenance", "canary"].join("-");
+const CANARY_DIGEST = "2618fb4a0978c83bdcb1b1bf6d7a1352487c7ef4828833c17af74be40ec1c3de";
+const SCANNED_DIGESTS: ReadonlySet<string> = new Set([...FORBIDDEN_DIGESTS, CANARY_DIGEST]);
+
+/**
+ * Every word a line carries, and every run of hyphen-joined words: `a-b-c` yields a, b, c, a-b, b-c,
+ * a-b-c. **A backslash escape separates words**, so a term spelled inside a regular expression
+ * (`\\bterm\\b`) or a string escape (`\\nterm`) is still read as the term; without that, the
+ * spelling that leaked the first time would pass this scan.
+ */
+function termsOf(line: string): string[] {
+	const terms: string[] = [];
+	for (const [token] of line
+		.replace(/\\[A-Za-z]/g, " ")
+		.matchAll(/[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*/g)) {
+		const words = token.split("-");
+		for (let start = 0; start < words.length; start++) {
+			for (let end = start + 1; end <= words.length; end++)
+				terms.push(words.slice(start, end).join("-"));
+		}
+	}
+	return terms;
+}
+
+/** Lines of `text` carrying a term whose digest is in `digests`, reported by line and digest prefix, never by term. */
+function digestHits(file: string, text: string, digests: ReadonlySet<string>): string[] {
+	const hits: string[] = [];
+	text.split("\n").forEach((line, i) => {
+		for (const term of termsOf(line)) {
+			const digest = createHash("sha256").update(term).digest("hex");
+			if (digests.has(digest)) hits.push(`${file}:${i + 1} sha256:${digest.slice(0, 12)}`);
+		}
+	});
+	return hits;
+}
 
 /**
  * Hosts this package may cite. **An allowlist, because a blocklist only catches what someone thought
@@ -170,7 +222,30 @@ describe("the package names no private codebase", () => {
 		).join("\n");
 		const undetected = FORBIDDEN.filter((p) => !p.test(synthetic));
 		expect(undetected).toEqual([]);
-		expect(FORBIDDEN.length).toBeGreaterThanOrEqual(31);
+		expect(FORBIDDEN.length).toBeGreaterThanOrEqual(23);
+	});
+
+	/**
+	 * **Every tracked text file, this one included**, because this file no longer spells any term it
+	 * guards by digest. The vendored files are the only exemption, for the reason above.
+	 */
+	it("names no private consumer term, by digest, in any tracked file", () => {
+		const hits = trackedFiles()
+			.filter((f) => TEXT.test(f) && !VENDORED.test(f))
+			.flatMap((file) =>
+				digestHits(file, readFileSync(join(packageRoot, file), "utf8"), SCANNED_DIGESTS),
+			);
+		expect(hits).toEqual([]);
+	});
+
+	it("the digest matcher finds a planted term, alone, inside a hyphenated run, and nowhere else", () => {
+		expect(createHash("sha256").update(CANARY).digest("hex")).toBe(CANARY_DIGEST);
+		expect(digestHits("planted", `a ${CANARY} b`, SCANNED_DIGESTS)).toHaveLength(1);
+		expect(digestHits("planted", `x-${CANARY}-y`, SCANNED_DIGESTS)).toHaveLength(1);
+		expect(digestHits("planted", `/\\b${CANARY}\\b/,`, SCANNED_DIGESTS)).toHaveLength(1);
+		expect(digestHits("planted", "provenance canaryx", SCANNED_DIGESTS)).toEqual([]);
+		// Non-vacuity: the scan above reads files that carry text at all.
+		expect(trackedFiles().filter((f) => TEXT.test(f)).length).toBeGreaterThanOrEqual(30);
 	});
 
 	/**
@@ -178,7 +253,8 @@ describe("the package names no private codebase", () => {
 	 * against: it would go green quietly, which is the one thing a guard must never do.
 	 */
 	it("keeps every term it has ever had", () => {
-		expect(FORBIDDEN.length).toBe(31);
+		expect(FORBIDDEN.length + FORBIDDEN_DIGESTS.size).toBe(31);
+		expect([...FORBIDDEN_DIGESTS].every((digest) => /^[0-9a-f]{64}$/.test(digest))).toBe(true);
 	});
 
 	it("cites no host outside the allowlist", () => {

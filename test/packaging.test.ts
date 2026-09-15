@@ -84,6 +84,44 @@ describe("the package is configured to publish the way it claims", () => {
 		expect(workflow).not.toMatch(/branches:\s*\[\s*["']?main/);
 	});
 
+	/**
+	 * **The Postman CLI is a third-party binary that runs with the repository checked out**, so it is
+	 * fetched by version and checked against a recorded digest, never piped from an installer that
+	 * serves whatever is latest. And the job holding the publishing credentials never runs it: the
+	 * binary could otherwise rewrite `dist/` before `pnpm publish`, and provenance would attest the
+	 * result.
+	 */
+	it("installs the Postman CLI by version and digest, and never from an installer piped to a shell", () => {
+		for (const name of ["ci.yml", "release.yml"]) {
+			const workflow = readFileSync(join(packageRoot, ".github", "workflows", name), "utf8");
+			expect(workflow, name).not.toMatch(/\|\s*(?:ba|z)?sh\b/);
+			expect(workflow, name).not.toMatch(/dl-cli\.pstmn\.io\/(?:install|download\/latest)/);
+			expect(workflow, name).toMatch(
+				/https:\/\/dl-cli\.pstmn\.io\/download\/version\/\$POSTMAN_CLI_VERSION\/linux64/,
+			);
+			expect(workflow, name).toMatch(/POSTMAN_CLI_SHA256: [0-9a-f]{64}\n/);
+			expect(workflow, name).toMatch(/sha256sum --check --strict/);
+		}
+	});
+
+	it("keeps the Postman CLI out of the job that publishes", () => {
+		const workflow = readFileSync(join(packageRoot, ".github", "workflows", "release.yml"), "utf8");
+		expect(workflow.indexOf("\n  verify:\n")).toBeGreaterThan(0);
+		expect(workflow.indexOf("\n  publish:\n")).toBeGreaterThan(workflow.indexOf("\n  verify:\n"));
+		const publish = workflow.slice(workflow.indexOf("\n  publish:\n"));
+		// Non-vacuity: the publish job exists, holds the credentials, and needs the verifying job.
+		expect(publish).toMatch(/id-token:\s*write/);
+		expect(publish).toMatch(/needs: verify/);
+		expect(publish).not.toMatch(/pstmn|postman/i);
+		const verify = workflow.slice(
+			workflow.indexOf("\n  verify:\n"),
+			workflow.indexOf("\n  publish:\n"),
+		);
+		expect(verify).toMatch(/sha256sum --check --strict/);
+		expect(verify).not.toMatch(/id-token|contents:\s*write/);
+		expect(verify).toContain("pnpm test");
+	});
+
 	it("runs every gate in CI, by name, including the system suites that need the Postman CLI", () => {
 		const ci = readFileSync(join(packageRoot, ".github", "workflows", "ci.yml"), "utf8");
 		for (const gate of [

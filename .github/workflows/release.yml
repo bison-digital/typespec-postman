@@ -8,7 +8,51 @@ on:
   workflow_dispatch:
 
 jobs:
+  # **The gate, in a job that holds no credential.** It runs the Postman CLI, a third-party binary, so it
+  # runs on its own runner with read-only access; the job that publishes builds from its own checkout
+  # and never executes that binary.
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # The run suite executes collections with the Postman CLI, the runner a team uses; the suite
+      # fails, rather than skips, when the binary is missing. A third-party binary runs here with the
+      # repository checked out, so it is fetched by version and refused unless it matches the digest
+      # recorded below. Postman's installer script fetches whatever is latest and checks nothing.
+      - name: Install the Postman CLI
+        env:
+          POSTMAN_CLI_VERSION: 1.56.1
+          POSTMAN_CLI_SHA256: 1169c039d5102d2c2eadec563fd7f0f8fdbf2ad7fed4bf728d2658a3bbb50105
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/postman-cli.tar.gz" "https://dl-cli.pstmn.io/download/version/$POSTMAN_CLI_VERSION/linux64"
+          echo "$POSTMAN_CLI_SHA256  $RUNNER_TEMP/postman-cli.tar.gz" | sha256sum --check --strict
+          mkdir -p "$RUNNER_TEMP/postman-cli"
+          tar -xzf "$RUNNER_TEMP/postman-cli.tar.gz" -C "$RUNNER_TEMP/postman-cli"
+          mv "$RUNNER_TEMP/postman-cli/postman-cli" "$RUNNER_TEMP/postman-cli/postman"
+          echo "$RUNNER_TEMP/postman-cli" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/postman-cli/postman" --version
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+      # The full gate again, against the exact commit being published.
+      - run: pnpm test
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm format:check
+
   publish:
+    needs: verify
     runs-on: ubuntu-latest
     permissions:
       # `write`: the last step creates the GitHub release.
@@ -24,19 +68,8 @@ jobs:
           cache: pnpm
           registry-url: https://registry.npmjs.org
 
-      - name: Install the Postman CLI
-        run: |
-          curl -fsSL https://dl-cli.pstmn.io/install/linux64.sh | sh
-          postman --version
-
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
-
-      # The full gate again, against the exact commit being published.
-      - run: pnpm test
-      - run: pnpm typecheck
-      - run: pnpm lint
-      - run: pnpm format:check
 
       - run: pnpm publish --access public --provenance --no-git-checks
         env:
