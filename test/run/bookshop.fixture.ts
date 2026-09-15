@@ -13,6 +13,7 @@ export type Mutant =
 	| "create-omits-id"
 	| "create-numeric-id"
 	| "list-returns-object"
+	| "bare-list-returns-object"
 	| "read-returns-other"
 	| "update-ignores-patch";
 
@@ -83,7 +84,8 @@ export function bookshopHandlers(
 		},
 		Books_list: (_ctx, input) => {
 			const shelf = books.get(String(input["authorId"]));
-			return shelf === undefined ? fail(404, "No such author") : [...shelf.values()];
+			if (shelf === undefined) return fail(404, "No such author");
+			return mutant === "bare-list-returns-object" ? {} : [...shelf.values()];
 		},
 		Books_read: (_ctx, input) => {
 			const book = books.get(String(input["authorId"]))?.get(String(input["bookId"]));

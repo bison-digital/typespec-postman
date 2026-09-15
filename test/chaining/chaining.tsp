@@ -18,12 +18,18 @@ model Project { @key slug: string; name: string; }
 model Widget { id: int64; name: string; }
 model Ticket { @format("uuid") id: string; }
 model Note { @format("uuid") id: string; }
+model Invitation { @format("uuid") id: string; email: string; }
 
 /** Position rule: the segment after the collection path, whatever it is called. */
 @route("/teams")
 interface Teams {
   @post create(@body team: Team): Created<Team>;
   @route("/{id}") @get read(@path @format("uuid") id: string): Team;
+  /**
+   * A POST to the team creates an invitation subordinate to it (RFC 9110 9.3.3), so the team's id
+   * stays a parameter this request consumes; only a PUT names the id it creates.
+   */
+  @route("/{id}") @post invite(@path @format("uuid") id: string, @body invitation: Invitation): Created<Invitation>;
   /** A plain string in the id position does not take a uuid id. */
   @route("/{name}") @head exists(@path name: string): void;
 }

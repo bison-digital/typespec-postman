@@ -13,10 +13,12 @@ import {
 	type Type,
 } from "@typespec/compiler";
 import { $ } from "@typespec/compiler/typekit";
-import type {
-	HttpOperation,
-	HttpOperationPathParameter,
-	HttpOperationResponse,
+import {
+	type HttpOperation,
+	type HttpOperationPathParameter,
+	type HttpOperationResponse,
+	type MetadataInfo,
+	Visibility,
 } from "@typespec/http";
 import { reportDiagnostic } from "./lib.js";
 import { camelCase, spokenName } from "./names.js";
@@ -105,14 +107,24 @@ function successResponses(operation: HttpOperation): HttpOperationResponse[] {
 
 const JSON_MEDIA = /^application\/(?:[\w.+-]+\+)?json$/i;
 
-/** The JSON body types an operation's 2xx arms return. */
-function successBodies(operation: HttpOperation): Type[] {
+/**
+ * A response body as the model the document names. **`@typespec/http` resolves a body whose model
+ * carries a property invisible at Read to an anonymous copy**, and `@typespec/openapi3` publishes
+ * that copy as the named model through `getEffectivePayloadType`; comparing the copy by identity
+ * lost every role of a resource with a write-only property.
+ */
+function responseType(metadata: MetadataInfo, type: Type): Type {
+	return metadata.getEffectivePayloadType(type, Visibility.Read);
+}
+
+/** The JSON body types an operation's 2xx arms return, as the models the document names. */
+function successBodies(metadata: MetadataInfo, operation: HttpOperation): Type[] {
 	return successResponses(operation).flatMap((response) =>
 		response.responses.flatMap((content) =>
 			content.body?.bodyKind === "single" &&
 			(content.body.contentTypes.length === 0 ||
 				content.body.contentTypes.some((type) => JSON_MEDIA.test(type)))
-				? [content.body.type]
+				? [responseType(metadata, content.body.type)]
 				: [],
 		),
 	);
@@ -169,7 +181,11 @@ function modelName(program: Program, model: Model): string | undefined {
 	return model.name === "" ? undefined : model.name;
 }
 
-export function deriveChains(program: Program, operations: readonly HttpOperation[]): Chains {
+export function deriveChains(
+	program: Program,
+	metadata: MetadataInfo,
+	operations: readonly HttpOperation[],
+): Chains {
 	const shapes = new Map<HttpOperation, Shape>(
 		operations.map((operation) => [operation, shapeOf(operation)]),
 	);
@@ -185,9 +201,10 @@ export function deriveChains(program: Program, operations: readonly HttpOperatio
 					(name) => name.toLowerCase() === "location",
 				);
 				const body = content.body;
-				if (!hasLocation || body?.bodyKind !== "single" || body.type.kind !== "Model") continue;
+				if (!hasLocation || body?.bodyKind !== "single") continue;
+				const model = responseType(metadata, body.type);
+				if (model.kind !== "Model") continue;
 				if (!body.contentTypes.every((type) => JSON_MEDIA.test(type))) continue;
-				const model = body.type;
 				const key = keyOf(program, model);
 				if (key === undefined) continue;
 				const name = modelName(program, model);
@@ -201,8 +218,12 @@ export function deriveChains(program: Program, operations: readonly HttpOperatio
 				}
 				const own = shape(operation);
 				let normal = [...own.normal];
-				// A PUT-create names the new id in its own route; the collection is the route without it.
-				const last = own.parameters.at(-1);
+				/**
+				 * **A PUT-create names the new id in its own route**; the collection is the route without it.
+				 * Only a PUT: RFC 9110 9.3.4 creates a PUT's resource AT the target URI, while 9.3.3 creates a
+				 * POST's resource subordinate to it, so a POST's trailing parameter is the parent it consumes.
+				 */
+				const last = operation.verb === "put" ? own.parameters.at(-1) : undefined;
 				if (last !== undefined) {
 					const parameter = pathParameter(operation, last.name);
 					if (parameter !== undefined && sameValueType(program, parameter.param, key))
@@ -299,7 +320,7 @@ export function deriveChains(program: Program, operations: readonly HttpOperatio
 	};
 
 	const returns = (operation: HttpOperation, model: Model) =>
-		successBodies(operation).some((type) => type === model);
+		successBodies(metadata, operation).some((type) => type === model);
 
 	return {
 		resources,
@@ -319,7 +340,7 @@ export function deriveChains(program: Program, operations: readonly HttpOperatio
 				if (resource === created) continue;
 				const own = shape(operation);
 				if (operation.verb === "get" && own.normal.join("/") === resource.collection.join("/")) {
-					const items = listItems(program, operation, resource.model);
+					const items = listItems(program, metadata, operation, resource.model);
 					if (items !== undefined) roles.push({ kind: "list", resource, items });
 					continue;
 				}
@@ -365,10 +386,11 @@ function arrayOf(type: Type, model: Model): boolean {
  */
 function listItems(
 	program: Program,
+	metadata: MetadataInfo,
 	operation: HttpOperation,
 	model: Model,
 ): readonly string[] | undefined {
-	for (const body of successBodies(operation)) {
+	for (const body of successBodies(metadata, operation)) {
 		if (arrayOf(body, model)) return [];
 	}
 	const [paging] = getPagingOperation(program, operation.operation);
@@ -378,7 +400,7 @@ function listItems(
 			resolveEncodedName(program, property, "application/json"),
 		);
 	}
-	for (const body of successBodies(operation)) {
+	for (const body of successBodies(metadata, operation)) {
 		if (body.kind !== "Model" || isArrayModelType(body)) continue;
 		const arrays = [...body.properties.values()].filter((property) =>
 			arrayOf(property.type, model),

@@ -6,11 +6,12 @@ import {
 	resolveEncodedName,
 } from "@typespec/compiler";
 import { $ } from "@typespec/compiler/typekit";
-import type { HttpOperation } from "@typespec/http";
+import { type HttpOperation, Visibility } from "@typespec/http";
 import { reportDiagnostic } from "./lib.js";
 import type { PlanAssertion, StatusMatch } from "./model.js";
 import type { DerivedRequest } from "./requests.js";
 import type { Role } from "./resources.js";
+import type { ValueContext } from "./values.js";
 
 /**
  * The checks a request carries. **Exactly what a good hand-written collection asserts and nothing
@@ -19,11 +20,12 @@ import type { Role } from "./resources.js";
  * derived from the spec, so none can drift from it. Schema validation is not here on purpose.
  */
 export function deriveAssertions(
-	program: Program,
+	context: ValueContext,
 	operation: HttpOperation,
 	roles: readonly Role[],
 	sent: DerivedRequest["sent"],
 ): PlanAssertion[] {
+	const { program } = context;
 	const assertions: PlanAssertion[] = [];
 	const codes = successCodes(operation);
 	if (codes.length === 0) {
@@ -58,7 +60,7 @@ export function deriveAssertions(
 				});
 				break;
 			case "update":
-				assertions.push(...updatedFields(program, operation, resource.model, sent));
+				assertions.push(...updatedFields(context, operation, resource.model, sent));
 				break;
 			case "delete":
 				break;
@@ -100,11 +102,12 @@ const RESPELLED = new Set([
 ]);
 
 function updatedFields(
-	program: Program,
+	context: ValueContext,
 	operation: HttpOperation,
 	model: Model,
 	sent: DerivedRequest["sent"],
 ): PlanAssertion[] {
+	const { program, metadata } = context;
 	const object = sent?.value;
 	const fromExample = sent?.fromExample ?? new Set<string>();
 	if (fromExample.size === 0) {
@@ -131,6 +134,11 @@ function updatedFields(
 	const properties = new Map<string, ModelProperty>();
 	for (let current: Model | undefined = model; current !== undefined; current = current.baseModel) {
 		for (const property of current.properties.values()) {
+			/**
+			 * **Only what a response carries**, the model at Read visibility. A write-only field an example
+			 * sets is sent and never returned, so asserting it would fail against a correct server.
+			 */
+			if (!metadata.isPayloadProperty(property, Visibility.Read)) continue;
 			const wire = resolveEncodedName(program, property, "application/json");
 			if (!properties.has(wire)) properties.set(wire, property);
 		}

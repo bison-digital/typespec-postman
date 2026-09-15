@@ -42,7 +42,7 @@ export function deriveCollection(
 	};
 	const operations = service.operations;
 	const auth = deriveAuth(program, service);
-	const chains = deriveChains(program, operations);
+	const chains = deriveChains(program, context.metadata, operations);
 	const tree = orderRequests(program, namespace, operations, chains);
 
 	const collectionAuth = options.collectionAuth ? auth.service?.setting : undefined;
@@ -87,7 +87,7 @@ export function deriveCollection(
 			headers: request.headers,
 			body: request.body,
 			auth: sameSetting(requirement.setting, inherited) ? undefined : requirement.setting,
-			assertions: deriveAssertions(program, operation, chains.roles(operation), request.sent),
+			assertions: deriveAssertions(context, operation, chains.roles(operation), request.sent),
 		};
 	};
 

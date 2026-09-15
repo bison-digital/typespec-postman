@@ -75,6 +75,10 @@ describe("requests that need it", () => {
 		expect(path("read", "Members")).toEqual(["teams", "{{teamId}}", "members", "{{memberId}}"]);
 	});
 
+	it("fill a POST's own trailing id, which names the parent it creates under", () => {
+		expect(path("invite", "Teams")).toEqual(["teams", "{{teamId}}"]);
+	});
+
 	it("fill a parameter named for the variable anywhere in a route", () => {
 		expect(path("report")).toEqual(["reports", "{{teamId}}"]);
 	});

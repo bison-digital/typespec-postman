@@ -57,6 +57,7 @@
 		"@typespec/openapi": "1.16.0",
 		"@typespec/openapi3": "1.16.0",
 		"@typespec/rest": "0.86.0",
+		"@typespec/spector": "0.1.0-alpha.29",
 		"@typespec/sse": "0.86.0",
 		"@typespec/streams": "0.86.0",
 		"@typespec/versioning": "0.86.0",

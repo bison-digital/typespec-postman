@@ -97,3 +97,26 @@ describe("what the chaining convention adds", () => {
 		);
 	});
 });
+
+describe("a resource whose model carries a property the response never does", () => {
+	/**
+	 * `@typespec/http` resolves such a response body to an anonymous copy of the model at Read
+	 * visibility, and `@typespec/openapi3` publishes it as the named model through
+	 * `getEffectivePayloadType`. The roles follow the model the document names.
+	 */
+	it("still reads the resource it created", () => {
+		expect(script("read", "Members").slice(3)).toEqual([
+			'pm.test("Returns the requested member", function () {',
+			'    pm.expect(String(pm.response.json()["id"])).to.eql(pm.variables.get("memberId"));',
+			"});",
+		]);
+	});
+
+	it("asserts only the example fields a response carries, never a write-only one", () => {
+		expect(script("update", "Members").slice(3)).toEqual([
+			'pm.test("name was updated", function () {',
+			'    pm.expect(pm.response.json()["name"]).to.eql("Renamed");',
+			"});",
+		]);
+	});
+});

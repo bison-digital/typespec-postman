@@ -71,6 +71,10 @@ describe("bodies generated from the model", () => {
 		expect(json("node")).toEqual({ name: "name" });
 	});
 
+	it("ends a required self-reference at the null its union allows, rather than an invalid object", () => {
+		expect(json("tree")).toEqual({ name: "name", parent: null });
+	});
+
 	it("reports a pattern no generated value satisfies, naming the property", () => {
 		const diagnostic = compiled.diagnostics.find(
 			(d) => d.code === "typespec-postman/unsatisfiable-value",

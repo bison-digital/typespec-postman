@@ -9,7 +9,6 @@ import {
 } from "@typespec/http";
 import { reportDiagnostic } from "./lib.js";
 import type { AuthSetting, PlanAuth, PlanParam, PlanVariable } from "./model.js";
-import { camelCase } from "./names.js";
 
 /**
  * What one operation, interface or namespace requires, as Postman can carry it.
@@ -49,8 +48,23 @@ export function deriveAuth(program: Program, service: HttpService): AuthDerivati
 	 */
 	const resolved = resolveAuthentication(service);
 	const credentials = new Map<string, PlanVariable>();
+	const owners = new Map<string, string>();
 
 	const credential = (key: string, scheme: HttpAuth): string => {
+		const owner = owners.get(key);
+		if (owner !== undefined && owner !== scheme.id) {
+			reportDiagnostic(program, {
+				code: "variable-collision",
+				format: {
+					variable: key,
+					first: `the credential of scheme '${owner}'`,
+					second: `the credential of scheme '${scheme.id}'`,
+				},
+				target: scheme.model,
+			});
+			return key;
+		}
+		owners.set(key, scheme.id);
 		if (!credentials.has(key)) {
 			credentials.set(key, {
 				key,
@@ -99,7 +113,7 @@ export function deriveAuth(program: Program, service: HttpService): AuthDerivati
 
 		const [primary] = authorization;
 		if (primary !== undefined) {
-			const variable = camelCase(primary.id);
+			const variable = schemeVariable(primary.id);
 			switch (primary.type) {
 				case "http":
 					if (primary.scheme.toLowerCase() === "bearer") {
@@ -138,7 +152,7 @@ export function deriveAuth(program: Program, service: HttpService): AuthDerivati
 		}
 		for (const key of apiKeys) {
 			if (key.type !== "apiKey") continue;
-			const variable = credential(camelCase(key.id), key);
+			const variable = credential(schemeVariable(key.id), key);
 			if (setting === undefined && key.in !== "cookie") {
 				const scheme: PlanAuth = { type: "apikey", name: key.name, in: key.in, variable };
 				setting = { kind: "scheme", scheme };
@@ -226,6 +240,16 @@ export function deriveAuth(program: Program, service: HttpService): AuthDerivati
 			return [...credentials.values()];
 		},
 	};
+}
+
+/**
+ * A scheme's credential variable: **the id `@typespec/openapi3` publishes the scheme under, first
+ * letter lowered.** `BearerAuth` is `bearerAuth`. The id is unique per service, because
+ * `resolveAuthentication` renames a second scheme sharing one (`ApiKeyAuth_`), so the variable is
+ * too; spelling it through word boundaries dropped that `_` and gave two schemes one credential.
+ */
+function schemeVariable(id: string): string {
+	return `${id.charAt(0).toLowerCase()}${id.slice(1)}`;
 }
 
 function nonEmpty(text: string | undefined): string | undefined {

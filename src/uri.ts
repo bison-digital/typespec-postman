@@ -58,6 +58,12 @@ export interface SplitTemplate {
 	readonly segments: readonly PathSegment[];
 	/** `{?a,b}` and `{&c}` expressions: sent as query parameters, never as path. */
 	readonly query: readonly UriTemplateParameter[];
+	/**
+	 * A query string written literally in the template, as `/items?fixed=true{&param}`: each
+	 * `name=value` pair after the `?`, in order. A template may continue a literal query with `{&x}`
+	 * (RFC 6570 section 3.2.9), so this is query, not the last path segment.
+	 */
+	readonly literalQuery: readonly (readonly [string, string])[];
 	/** A `{#x}` expression: Postman keeps a fragment beside the path, not in it. */
 	readonly fragment: UriTemplateParameter | undefined;
 }
@@ -69,8 +75,10 @@ export interface SplitTemplate {
 export function splitTemplate(template: string): SplitTemplate {
 	const segments: UriTemplateSegment[][] = [];
 	const query: UriTemplateParameter[] = [];
+	const literalQuery: [string, string][] = [];
 	let fragment: UriTemplateParameter | undefined;
 	let current: UriTemplateSegment[] | undefined;
+	let inQuery = false;
 	const open = () => {
 		current = [];
 		segments.push(current);
@@ -78,7 +86,17 @@ export function splitTemplate(template: string): SplitTemplate {
 	};
 	for (const part of parseUriTemplate(template)) {
 		if (typeof part === "string") {
-			const pieces = part.split("/");
+			let text = part;
+			if (!inQuery && text.includes("?")) {
+				inQuery = true;
+				const at = text.indexOf("?");
+				literalQuery.push(...pairsOf(text.slice(at + 1)));
+				text = text.slice(0, at);
+			} else if (inQuery) {
+				literalQuery.push(...pairsOf(text));
+				continue;
+			}
+			const pieces = text.split("/");
 			pieces.forEach((piece, index) => {
 				const target = index === 0 ? (current ?? (piece === "" ? undefined : open())) : open();
 				if (piece !== "" && target !== undefined) target.push(piece);
@@ -95,7 +113,23 @@ export function splitTemplate(template: string): SplitTemplate {
 			(current ?? open()).push(part);
 		}
 	}
-	return { segments: segments.filter((segment) => segment.length > 0), query, fragment };
+	return {
+		segments: segments.filter((segment) => segment.length > 0),
+		query,
+		literalQuery,
+		fragment,
+	};
+}
+
+/** `a=1&b=2` -> the pairs it spells, dropping the empty pieces a leading or trailing `&` leaves. */
+function pairsOf(text: string): [string, string][] {
+	return text
+		.split("&")
+		.filter((piece) => piece !== "")
+		.map((piece) => {
+			const at = piece.indexOf("=");
+			return at === -1 ? [piece, ""] : [piece.slice(0, at), piece.slice(at + 1)];
+		});
 }
 
 /** A JSON value a parameter carries. */

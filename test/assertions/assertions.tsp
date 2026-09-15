@@ -45,3 +45,15 @@ interface Seats {
   @post create(@body seat: Seat): Created<Seat>;
   @route("/{seatId}") @patch(#{ implicitOptionality: false }) update(@path @format("uuid") seatId: string, @body patch: SeatPatch): Seat;
 }
+
+/** A property written but never read back, so the response body is the model at Read visibility. */
+model Member { @visibility(Lifecycle.Read) @format("uuid") id: string; name: string; @visibility(Lifecycle.Create, Lifecycle.Update) pin: string; }
+model MemberPatch { name?: string; @visibility(Lifecycle.Create, Lifecycle.Update) pin?: string; }
+
+@route("/members")
+interface Members {
+  @post create(@body member: Member): Created<Member>;
+  @route("/{memberId}") @get read(@path @format("uuid") memberId: string): Member;
+  @opExample(#{ parameters: #{ memberId: "00000000-0000-0000-0000-000000000000", patch: #{ name: "Renamed", pin: "1234" } } })
+  @route("/{memberId}") @patch(#{ implicitOptionality: false }) update(@path @format("uuid") memberId: string, @body patch: MemberPatch): Member;
+}

@@ -36,11 +36,20 @@ model Flow {
 /** Two API keys, together: the first is the auth object, the second a header. */
 @route("/keys") @useAuth([ShopKey, QueryKey]) @get op keys(): void;
 
+/** A query key alone, so the auth object itself carries `in: query`. */
+@route("/query-keyed") @useAuth(QueryKey) @get op queryKeyed(): void;
+
 @route("/cookie") @useAuth(SessionCookie) @get op cookie(): void;
 
 @route("/signed") @useAuth(Signature) @get op signed(): void;
 
 @route("/two-authorizations") @useAuth([BearerAuth, BasicAuth]) @get op twoAuthorizations(): void;
+
+/**
+ * Two anonymous instantiations of one template share the id `ApiKeyAuth`; `resolveAuthentication`
+ * renames the second `ApiKeyAuth_`, and `@typespec/openapi3` publishes both.
+ */
+@route("/anonymous-keys") @useAuth([ApiKeyAuth<ApiKeyLocation.header, "X-First">, ApiKeyAuth<ApiKeyLocation.header, "X-Second">]) @get op anonymousKeys(): void;
 
 @route("/oauth") @useAuth(OAuth2Auth<[Flow]>) @get op oauth(): void;
 

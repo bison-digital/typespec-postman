@@ -57,6 +57,16 @@ describe("query parameters", () => {
 		expect(url("search")?.raw).toBe("{{baseUrl}}/search?term=term&tags=tags&colors=colors");
 	});
 
+	/**
+	 * RFC 6570 section 2.3 treats an empty associative array as undefined, so `{}` expands to nothing
+	 * and a server validating a required record refuses the request. One entry, keyed by the
+	 * parameter's name as a generated string is, is the least that is still sent.
+	 */
+	it("never sends a required record empty, in the path or the query", () => {
+		expect(url("pathRecord")?.path).toEqual(["filters", "by,0"]);
+		expect(url("queryRecord")?.query).toEqual([{ key: "filter", value: "filter,0" }]);
+	});
+
 	it("takes values from @opExample, enabling an optional parameter the example sets", () => {
 		expect(url("exampled")?.query).toEqual([
 			{ key: "term", value: "bridges" },

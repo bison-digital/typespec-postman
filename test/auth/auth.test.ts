@@ -86,6 +86,30 @@ describe("requirements Postman's single auth object cannot hold", () => {
 		expect(keys.request?.url.query).toEqual([{ key: "key", value: "{{queryKey}}" }]);
 	});
 
+	it("gives two schemes that share a template their own credentials, named as openapi3 names them", () => {
+		const keys = requestNamed(collection, "anonymousKeys");
+		expect(keys.request?.auth).toEqual({
+			type: "apikey",
+			apikey: [
+				{ key: "key", value: "X-First", type: "string" },
+				{ key: "value", value: "{{apiKeyAuth}}", type: "string" },
+				{ key: "in", value: "header", type: "string" },
+			],
+		});
+		expect(headerOf(keys, "X-Second")?.value).toBe("{{apiKeyAuth_}}");
+	});
+
+	it("puts a query API key in the auth object with its location, not in a header", () => {
+		expect(requestNamed(collection, "queryKeyed").request?.auth).toEqual({
+			type: "apikey",
+			apikey: [
+				{ key: "key", value: "key", type: "string" },
+				{ key: "value", value: "{{queryKey}}", type: "string" },
+				{ key: "in", value: "query", type: "string" },
+			],
+		});
+	});
+
 	it("sends a cookie API key as a Cookie header, which Postman's apikey helper cannot", () => {
 		const cookie = requestNamed(collection, "cookie");
 		expect(cookie.request?.auth).toEqual({ type: "noauth" });
@@ -128,6 +152,8 @@ describe("credentials", () => {
 			"queryKey",
 			"sessionCookie",
 			"signature",
+			"apiKeyAuth",
+			"apiKeyAuth_",
 			"oAuth2Auth",
 			"basicAuthUsername",
 			"basicAuthPassword",

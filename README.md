@@ -53,7 +53,9 @@ The file is Postman Collection Format v2.1, byte-identical for identical input.
 A created resource's id reaches the requests that need it without any annotation in the spec.
 
 1. **An operation creates a resource** when it declares a `201` response with a `Location` header and a
-   JSON body that is a named model with a key. The key is the `@key` property, otherwise `id`.
+   JSON body that is a named model with a key. The key is the `@key` property, otherwise `id`. A `POST`
+   creates under its route; a `PUT` whose route ends in the key creates at it, so its route without
+   the key is where the resource was created.
 2. **The id is stored** in a collection variable named for the model and its key: `Organization` with
    `id` sets `organizationId`, and `Project` with `@key slug` sets `projectSlug`.
 3. **A path parameter consumes the id** when it carries the same kind of value as the key (the same

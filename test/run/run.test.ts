@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { bookshopHandlers, type Mutant } from "./bookshop.fixture.js";
+import { edgesHandlers } from "./edges.fixture.js";
 import {
 	type Compiled,
 	compileSpec,
@@ -190,6 +191,15 @@ describe("the collection goes red against a server that disagrees with the spec"
 		expect(failedTests(result)).toContain("read: Returns the requested author");
 	});
 
+	it("when a list returned as a bare array returns something that is not a list", async () => {
+		const result = await run("mutant-bare-list", {
+			mutant: "bare-list-returns-object",
+			server: { unvalidated: true },
+		});
+		expect(result.exitCode).not.toBe(0);
+		expect(failedTests(result)).toContain("list: Response is an array");
+	});
+
 	it("when an update ignores the patch it was sent", async () => {
 		const result = await run("mutant-update", { mutant: "update-ignores-patch" });
 		expect(result.exitCode).not.toBe(0);
@@ -240,5 +250,50 @@ describe("the collection goes red when it stops sending what the spec requires",
 		});
 		expect(result.exitCode).not.toBe(0);
 		expect(failedTests(result)).toContain("create: Status code is 201");
+	});
+});
+
+/**
+ * **Resources the worked example has no instance of**, each run against a server generated from
+ * `edges.tsp`: a numeric key, which a collection variable holds as text, so the read assertion
+ * compares text with text; and a property written but never read back, which an update assertion
+ * must leave alone because a correct server never returns it.
+ */
+describe("the collection runs green where a key is a number or a field is write-only", () => {
+	let edges: Compiled;
+
+	beforeAll(async () => {
+		edges = await compileSpec(join(here, "edges.tsp"), join(here, ".out", "edges"), {
+			openapi: true,
+			hono: true,
+		});
+		expect(edges.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+	}, 600_000);
+
+	it("chains a numeric id, reads it back, and asserts only the fields a response carries", async () => {
+		served = await serveGenerated(edges.serverDir, edges.document(), "", edgesHandlers());
+		const result = await runCollection(
+			join(edges.outDir, "postman_collection.json"),
+			{ endpoint: served.origin },
+			join(here, ".out", "reports", "edges.json"),
+		);
+		expect(failedTests(result), result.output).toEqual([]);
+		expect(result.exitCode, result.output).toBe(0);
+		expect(
+			result.executions.flatMap((execution) =>
+				execution.tests.map((test) => `${execution.name}: ${test.name}`),
+			),
+		).toEqual([
+			"create: Status code is 201",
+			"create: Response has an id",
+			"read: Status code is 200",
+			"read: Returns the requested widget",
+			"create: Status code is 201",
+			"create: Response has an id",
+			"read: Status code is 200",
+			"read: Returns the requested member",
+			"update: Status code is 200",
+			"update: name was updated",
+		]);
 	});
 });

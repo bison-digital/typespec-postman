@@ -42,6 +42,7 @@ model Circle { radius: int32; }
 model Square { side: int32; }
 
 model Node { name: string; child?: Node; }
+model Tree { name: string; parent: Tree | null; }
 
 @route("/widgets") @post op create(@body widget: Widget): void;
 
@@ -59,6 +60,8 @@ model Node { name: string; child?: Node; }
 @route("/shapes") @post op shape(@body shape: Shape): void;
 
 @route("/nodes") @post op node(@body node: Node): void;
+
+@route("/trees") @post op tree(@body tree: Tree): void;
 
 @route("/patterned") @post op patterned(@body body: { @example("123") @pattern("^[0-9]{3}$") code: string }): void;
 

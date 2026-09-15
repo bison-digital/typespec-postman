@@ -38,6 +38,9 @@ importers:
       '@typespec/rest':
         specifier: 0.86.0
         version: 0.86.0(@typespec/compiler@1.16.0(@types/node@26.5.1))(@typespec/http@1.16.0(@typespec/compiler@1.16.0(@types/node@26.5.1))(@typespec/streams@0.86.0(@typespec/compiler@1.16.0(@types/node@26.5.1))))
+      '@typespec/spector':
+        specifier: 0.1.0-alpha.29
+        version: 0.1.0-alpha.29(@types/node@26.5.1)(@typespec/streams@0.86.0(@typespec/compiler@1.16.0(@types/node@26.5.1)))
       '@typespec/sse':
         specifier: 0.86.0
         version: 0.86.0(@typespec/compiler@1.16.0(@types/node@26.5.1))(@typespec/events@0.86.0(@typespec/compiler@1.16.0(@types/node@26.5.1)))(@typespec/http@1.16.0(@typespec/compiler@1.16.0(@types/node@26.5.1))(@typespec/streams@0.86.0(@typespec/compiler@1.16.0(@types/node@26.5.1))))(@typespec/streams@0.86.0(@typespec/compiler@1.16.0(@types/node@26.5.1)))

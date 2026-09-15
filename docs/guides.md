@@ -61,6 +61,10 @@ it at run time or set it in a Postman environment:
 | `BearerAuth`                       | `bearerAuth`                             |
 | `BasicAuth`                        | `basicAuthUsername`, `basicAuthPassword` |
 
+The name is the scheme id `@typespec/openapi3` publishes, first letter lowered. Two schemes instantiated
+from one template, which it publishes as `ApiKeyAuth` and `ApiKeyAuth_`, get `apiKeyAuth` and
+`apiKeyAuth_`, so each carries its own credential.
+
 A credential whose value must be an id created earlier in the run can reference the chained variable,
 because Postman resolves a variable inside another variable's value at request time:
 

@@ -146,11 +146,30 @@ export function exampleParameter(
 export function parameterValue(context: ValueContext, property: ModelProperty): JsonValue {
 	const produced = propertyValue(context, property, Visibility.Query, new Set(), property.name);
 	/**
-	 * **A parameter list is never generated empty.** RFC 6570 expands an empty list to nothing, so a
-	 * required `tags: string[]` would not be sent at all and a server validating against the spec
-	 * would refuse the request. One element is the least a list parameter can carry and still be sent.
+	 * **A parameter list or record is never generated empty.** RFC 6570 section 2.3 treats an empty
+	 * list or associative array as undefined and expands it to nothing, so a required `tags: string[]`
+	 * or `filter: Record<int32>` would not be sent at all and a server validating against the spec
+	 * would refuse the request. One element, or one entry keyed by the parameter's name, is the least
+	 * that is still sent.
 	 */
 	const type = property.type;
+	if (
+		!produced.example &&
+		produced.value !== null &&
+		typeof produced.value === "object" &&
+		!Array.isArray(produced.value) &&
+		Object.keys(produced.value).length === 0 &&
+		type.kind === "Model" &&
+		isRecordModelType(type)
+	) {
+		return {
+			[property.name]: typeValue(context, type.indexer.value, Visibility.Query, new Set(), {
+				name: property.name,
+				top: undefined,
+				ignoreMetadataAnnotations: false,
+			}).value,
+		};
+	}
 	if (
 		!produced.example &&
 		Array.isArray(produced.value) &&
@@ -352,11 +371,23 @@ function unionValue(
 		}
 	}
 	const variants = [...union.variants.values()].map((variant) => variant.type);
-	const concrete = variants.filter(
-		(variant) => !(variant.kind === "Intrinsic" && variant.name === "null"),
-	);
-	const [first] = concrete;
-	if (first === undefined) return { value: null, example: false };
+	const isNull = (variant: Type) => variant.kind === "Intrinsic" && variant.name === "null";
+	const concrete = variants.filter((variant) => !isNull(variant));
+	/**
+	 * **A variant that would recurse into a model already being built is passed over**, and `null`
+	 * taken when the union allows it: `parent: Tree | null` ends at `null`, the value that satisfies
+	 * it, rather than at `{}`, which satisfies nothing.
+	 */
+	const [first] = concrete.filter((variant) => !(variant.kind === "Model" && seen.has(variant)));
+	if (first === undefined && concrete.length > 0 && variants.some(isNull)) {
+		return { value: null, example: false };
+	}
+	if (first === undefined) {
+		const [recursive] = concrete;
+		return recursive === undefined
+			? { value: null, example: false }
+			: typeValue(context, recursive, visibility, seen, position, property);
+	}
 	return typeValue(context, first, visibility, seen, position, property);
 }
 

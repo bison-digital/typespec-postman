@@ -27,7 +27,18 @@ Everything here was measured. Read it before changing the emitter.
 6. **`@typespec/http`'s `parseUriTemplate` is not exported.** `src/uri.ts` carries a copy; never build a
    URL from `HttpOperation.path`, which drops the expansion operator.
 7. **Declaration order is source position**, not `service.operations` order, which lists a namespace's
-   own operations before every interface.
+   own operations before every interface. The compiler loads imports one at a time
+   (`source-loader.js` awaits each), so `program.sourceFiles` order depends on the import graph alone.
+8. **A response body is compared as the model the document names.** `@typespec/http` resolves a body
+   whose model has a property invisible at Read to an anonymous copy; `getEffectivePayloadType` is how
+   openapi3 names it, and comparing the copy by identity silently lost every role of such a resource.
+9. **A numeric key reads back as text** only because every collection variable is declared
+   `type: "string"`: `postman-collection` casts a `set` value through the declared type. Remove it and
+   "Returns the requested widget" fails through the CLI (`test/run/edges.tsp`).
+10. **The server judge's verdict is reaching a handler.** A wrong route answers 404 from the router
+    without any validator seeing it; the judge once stayed green with every bodiless URL broken.
+11. **The provenance gate holds private terms as SHA-256 digests.** The first version spelled them in
+    plain text in this public repository. Never add a term in plain text; add its digest.
 
 ## Findings in sibling packages, not fixed here
 
@@ -41,8 +52,20 @@ Everything here was measured. Read it before changing the emitter.
   package resolves typespec-hono and typespec-http-zod from the registry, so `test/corpus/corpus.test.ts`
   still names the request in `SERVER_DEFECTS`; the arm requiring every listed defect to occur fails the
   day a released pair carries the fix, and that is when the entry is deleted.
+- **typespec-http-zod refused a JSON multipart part. Fixed on its `main` (`4443274`), unreleased.**
+  `HttpPart<Address>` arrives as JSON text with `Content-Type: application/json`; measured 400 on the
+  Postman CLI's bytes. No corpus scenario sends one (each also has a file part), so nothing here lists it.
+- **typespec-hono refuses 34 conformant corpus requests. Open, reported to its owner.** Path expansions
+  (`{.x}`, `{;x}`, `{/x}`, `primitive{x}`, and `optional{/name}` in `parameters/path`) are mounted with
+  the operator dropped, and a literal query string is mounted inside the router path: 31 answer 404,
+  including the exact URIs http-specs' own mock declares. A form-expanded record or model query answers
+  400 (3). `SERVER_DEFECTS` names each request.
 
 ## Open
+
+- **Git history still carries the client's names.** `test/provenance.test.ts` spelled them in plain
+  text from the first commit; the tree is fixed, the history is not. Rewriting published history is
+  Zach's decision.
 
 - **The Postman app import** has not been confirmed. It is the one acceptance check no suite can make;
   `docs/releasing.md` makes it a release step.

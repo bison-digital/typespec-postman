@@ -13,26 +13,26 @@ has errors.
 
 ## What is derived, and from what
 
-| part of the collection                | derived from                                                                                                                   |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| collection name and description       | `@service` title, otherwise the namespace name; the namespace's doc comment                                                    |
-| collection id, folder and request ids | a digest of the service, folder and operation identity (the same spec always gives the same ids)                               |
-| `baseUrl`                             | the first `@server`, with each `{name}` written `{{name}}`                                                                     |
-| server variables                      | each `@server` parameter, defaulted from its default, otherwise its first enum or literal value                                |
-| folders                               | `HttpOperation.container`: the declaring interface or namespace, named relative to the service                                 |
-| folder nesting                        | the chaining convention: a folder whose routes sit directly under a resource nests in that resource's folder                   |
-| request name                          | `@summary`, otherwise the operation name                                                                                       |
-| method and route                      | `HttpOperation.verb` and `HttpOperation.uriTemplate`, expanded per RFC 6570                                                    |
-| path variables                        | whole-segment path parameters, valued from `@opExample`, `@example`, or generated                                              |
-| query parameters                      | `@query` parameters; optional ones are listed disabled unless an example sets them                                             |
-| headers                               | `@header` parameters; `Content-Type` from the body; `Accept` from the first response body                                      |
-| cookies                               | `@cookie` parameters and cookie API keys, as one `Cookie` header                                                               |
-| body                                  | `@opExample`, then the model's `@example`, then generated at the request's visibility                                          |
-| auth                                  | `resolveAuthentication`: collection from the service namespace, folder from the interface, request where the operation differs |
-| credential variables                  | each security scheme used, named for the scheme id `@typespec/openapi3` publishes                                              |
-| chained id variables                  | the chaining convention                                                                                                        |
-| order                                 | the chaining convention, then declaration order                                                                                |
-| assertions                            | 2xx statuses; the chaining convention's roles; an `@opExample` body for update assertions                                      |
+| part of the collection                | derived from                                                                                                                                                        |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| collection name and description       | `@service` title, otherwise the namespace name; the namespace's doc comment                                                                                         |
+| collection id, folder and request ids | a digest of the service, folder and operation identity (the same spec always gives the same ids)                                                                    |
+| `baseUrl`                             | the first `@server`, with each `{name}` written `{{name}}`                                                                                                          |
+| server variables                      | each `@server` parameter, defaulted from its default, otherwise its first enum or literal value                                                                     |
+| folders                               | `HttpOperation.container`: the declaring interface or namespace, named relative to the service                                                                      |
+| folder nesting                        | the chaining convention: a folder whose routes sit directly under a resource nests in that resource's folder                                                        |
+| request name                          | `@summary`, otherwise the operation name                                                                                                                            |
+| method and route                      | `HttpOperation.verb` and `HttpOperation.uriTemplate`, expanded per RFC 6570                                                                                         |
+| path variables                        | whole-segment path parameters, valued from `@opExample`, `@example`, or generated                                                                                   |
+| query parameters                      | `@query` parameters, and a query string written literally in the route (`/items?fixed=true{&param}`); optional ones are listed disabled unless an example sets them |
+| headers                               | `@header` parameters; `Content-Type` from the body; `Accept` from the first response body                                                                           |
+| cookies                               | `@cookie` parameters and cookie API keys, as one `Cookie` header                                                                                                    |
+| body                                  | `@opExample`, then the model's `@example`, then generated at the request's visibility                                                                               |
+| auth                                  | `resolveAuthentication`: collection from the service namespace, folder from the interface, request where the operation differs                                      |
+| credential variables                  | each security scheme used, named for the scheme id `@typespec/openapi3` publishes, first letter lowered (`ApiKeyAuth_` is `apiKeyAuth_`)                            |
+| chained id variables                  | the chaining convention                                                                                                                                             |
+| order                                 | the chaining convention, then declaration order                                                                                                                     |
+| assertions                            | 2xx statuses; the chaining convention's roles; an `@opExample` body for update assertions                                                                           |
 
 ### Generated values
 
@@ -42,8 +42,10 @@ A generated value satisfies what the spec states about it:
   a known `@format` or scalar gets a conforming value (`uuid`, `email`, `url`, `utcDateTime`, `plainDate`
   and so on); a `@pattern` the value does not match is reported;
 - **numbers** take `@minValue`, or `0`, within every bound;
-- **enums, literals and unions** take their first member, value or non-null variant;
-- **arrays** carry `@minItems` elements, and a list parameter at least one;
+- **enums, literals and unions** take their first member, value or non-null variant, passing over a
+  variant that would recurse into the model being built, for `null` where the union allows it;
+- **arrays** carry `@minItems` elements; a list parameter carries at least one element and a record
+  parameter at least one entry, because RFC 6570 does not send an empty one at all;
 - **encodings** are applied: a delimited array is one string, a number or boolean encoded as a string is
   its text, date-times and durations take their declared encoding;
 - **discriminated models and unions** take their first variant, with the discriminator set and any

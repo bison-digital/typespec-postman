@@ -245,15 +245,65 @@ export function orderRequests(
 				sorted.push(next);
 				continue;
 			}
-			// Stuck. Give up the soft edges among what is left first, so creations stay in order.
-			const soft = active.filter((sibling) => !sibling.edge.hard && pending.has(sibling.from));
-			if (soft.length > 0) {
-				active = active.filter((sibling) => !soft.includes(sibling));
-				continue;
+			/**
+			 * **Stuck: every node left waits on another**, so some edge has to be given up. Measured against a
+			 * brute-force search over every folder-respecting order, giving up every soft edge at once and
+			 * then emitting the rest in declaration order broke hard edges no order needed to break. So:
+			 *
+			 * 1. only a node on a cycle is ever released, because releasing one merely downstream of a
+			 *    cycle breaks its edges and leaves the cycle stuck;
+			 * 2. a cycle node that waits on soft edges alone is released first, the fewest of them;
+			 * 3. otherwise the soft edges that lie on a cycle are given up, and nothing else;
+			 * 4. and only then the cycle node waiting on the fewest hard edges is released.
+			 *
+			 * Each sibling edge stands for one request edge, so a folder whose requests need more of another
+			 * folder weighs more.
+			 */
+			const within = (sibling: SiblingEdge) => pending.has(sibling.from) && pending.has(sibling.to);
+			const reaches = (from: OrderedNode, to: OrderedNode): boolean => {
+				const seen = new Set<OrderedNode>();
+				const stack = [from];
+				while (stack.length > 0) {
+					const next = stack.pop();
+					if (next === undefined || seen.has(next)) continue;
+					if (next === to) return true;
+					seen.add(next);
+					for (const sibling of active) {
+						if (sibling.from === next && within(sibling)) stack.push(sibling.to);
+					}
+				}
+				return false;
+			};
+			const onCycle = (node: OrderedNode) =>
+				active.some(
+					(sibling) => sibling.from === node && within(sibling) && reaches(sibling.to, node),
+				);
+			const cost = (node: OrderedNode) => {
+				const waits = active.filter((sibling) => sibling.to === node && within(sibling));
+				return {
+					hard: waits.filter((sibling) => sibling.edge.hard).length,
+					soft: waits.filter((sibling) => !sibling.edge.hard).length,
+				};
+			};
+			const cyclic = [...pending].filter(onCycle);
+			const [cheapest] = (cyclic.length > 0 ? cyclic : [...pending]).toSorted((a, b) => {
+				const left = cost(a);
+				const right = cost(b);
+				return left.hard - right.hard || left.soft - right.soft || byPriority(a, b);
+			});
+			if (cheapest === undefined) break;
+			if (cost(cheapest).hard > 0) {
+				const softOnCycle = active.filter(
+					(sibling) => !sibling.edge.hard && within(sibling) && reaches(sibling.to, sibling.from),
+				);
+				if (softOnCycle.length > 0) {
+					active = active.filter((sibling) => !softOnCycle.includes(sibling));
+					continue;
+				}
 			}
-			// A cycle of creations alone: declaration order for what remains.
-			sorted.push(...[...pending].toSorted(byPriority));
-			break;
+			pending.delete(cheapest);
+			sorted.push(cheapest);
+			active = active.filter((sibling) => sibling.to !== cheapest);
 		}
 		return sorted.map((node) =>
 			node.kind === "folder" ? { ...node, children: sortLevel(node, node.children) } : node,

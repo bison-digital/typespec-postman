@@ -119,6 +119,24 @@ interface RequestFacets {
 const authType = (auth: PostmanAuth | undefined | null) =>
 	auth === undefined || auth === null || auth.type === "noauth" ? "none" : auth.type;
 
+/**
+ * The effective auth as a request sends it: the type, and for an API key where it goes and under
+ * which name, which the spec states and both collections must agree on. Credential variable names
+ * and OAuth2 flow attributes are each side's own spelling and are not compared.
+ */
+function authFacet(auth: PostmanAuth | undefined | null): string {
+	const type = authType(auth);
+	if (type !== "apikey" || auth === undefined || auth === null) return type;
+	const attributes = new Map(
+		((auth["apikey"] ?? []) as { key: string; value: string }[]).map((attribute) => [
+			attribute.key,
+			attribute.value,
+		]),
+	);
+	// Postman sends an API key in a header when `in` is absent.
+	return `apikey ${attributes.get("in") ?? "header"} ${attributes.get("key") ?? ""}`;
+}
+
 function facetsOf(collection: PostmanCollection): Map<string, RequestFacets> {
 	const facets = new Map<string, RequestFacets>();
 	const walk = (items: readonly PostmanItem[], inherited: PostmanAuth | undefined) => {
@@ -141,7 +159,7 @@ function facetsOf(collection: PostmanCollection): Map<string, RequestFacets> {
 				variables: (request.url.variable ?? []).map((variable) => variable.key).toSorted(),
 				query: [...new Set((request.url.query ?? []).map((param) => param.key))].toSorted(),
 				headers: [...new Set(headers.map((header) => header.key.toLowerCase()))].toSorted(),
-				auth: authType(
+				auth: authFacet(
 					request.auth === undefined || request.auth === null ? inherited : request.auth,
 				),
 				body:

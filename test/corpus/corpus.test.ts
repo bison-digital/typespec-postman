@@ -26,6 +26,11 @@ import {
  * The second judge is the stronger one and the reason this suite exists: JSON Schema without a
  * discriminator keyword accepts a body a Zod validator refuses, and a document annotation such as
  * `format: int32` is not a check. **The expectation comes from neither this emitter nor its fixtures.**
+ *
+ * **Reaching the handler is the verdict, not the absence of a refusal.** A request whose route is
+ * wrong answers 404 from the router without any validator seeing it, so a judge that only listened
+ * for refusals stayed green with the URL of every bodiless request broken. And the server judge needs
+ * no document, so a scenario `@typespec/openapi3` refuses is still sent to the server generated from it.
  */
 
 const here = fileURLToPath(new URL(".", import.meta.url));
@@ -114,9 +119,62 @@ const documentRefused: string[] = [];
  * Requests the generated server refuses although they are exactly what the scenario documents: a
  * defect in the SERVER library, named with its evidence so it is fixed there rather than hidden here.
  */
+const UNROUTED_EXPANSION =
+	"typespec-hono mounts the route from the path with the RFC 6570 operator dropped (for example `primitive:param`), so the URL http-specs' own mock declares answers 404";
+const UNROUTED_CONTINUATION =
+	"typespec-hono mounts the route with the literal query string inside the router path (`...?fixed=true`), so the URL http-specs' own mock declares answers 404";
+const UNDECODED_QUERY =
+	"typespec-hono's query validator does not decode a form-expanded record or model, so the query http-specs' own mock declares is refused with 400";
+
 const SERVER_DEFECTS: Readonly<Record<string, string>> = {
 	"POST {{baseUrl}}/multipart/form-data/non-string-float":
 		"typespec-http-zod emits z.number() for a text/plain multipart part carrying a float64, so the text part the scenario documents is refused",
+	"GET {{baseUrl}}/parameters/path/optional/name": UNROUTED_EXPANSION,
+	...Object.fromEntries(
+		[
+			"simple/standard/primitiveparam",
+			"simple/standard/arrayparam",
+			"simple/standard/recordparam,0",
+			"simple/explode/primitiveparam",
+			"simple/explode/arrayparam",
+			"simple/explode/recordparam=0",
+			"path/standard/primitive/param",
+			"path/standard/array/param",
+			"path/standard/record/param,0",
+			"path/explode/primitive/param",
+			"path/explode/array/param",
+			"path/explode/record/param=0",
+			"label/standard/primitive.param",
+			"label/standard/array.param",
+			"label/standard/record.param,0",
+			"label/explode/primitive.param",
+			"label/explode/array.param",
+			"label/explode/record.param=0",
+			"matrix/standard/primitive;param=param",
+			"matrix/standard/array;param=param",
+			"matrix/standard/record;param=param,0",
+			"matrix/explode/primitive;param=param",
+			"matrix/explode/array;param=param",
+			"matrix/explode/record;param=0",
+		].map((route) => [`GET {{baseUrl}}/routes/path/${route}`, UNROUTED_EXPANSION]),
+	),
+	...Object.fromEntries(
+		[
+			"standard/primitive?fixed=true&param=param",
+			"standard/array?fixed=true&param=param",
+			"standard/record?fixed=true&param=param,0",
+			"explode/primitive?fixed=true&param=param",
+			"explode/array?fixed=true&param=param",
+			"explode/record?fixed=true&param=0",
+		].map((route) => [
+			`GET {{baseUrl}}/routes/query/query-continuation/${route}`,
+			UNROUTED_CONTINUATION,
+		]),
+	),
+	"GET {{baseUrl}}/routes/query/query-expansion/standard/record?param=param,0": UNDECODED_QUERY,
+	"GET {{baseUrl}}/routes/query/query-expansion/explode/record?param=0": UNDECODED_QUERY,
+	"GET {{baseUrl}}/routes/query/query-expansion/explode/model?field=field&value=value":
+		UNDECODED_QUERY,
 };
 const serverDefects: string[] = [];
 
@@ -139,6 +197,9 @@ const SERVER_REFUSALS: Readonly<Record<string, string>> = {
 };
 const serverRefused: Record<string, string> = {};
 
+/** Scenarios with no document, judged by the generated server alone. */
+const serverOnly: string[] = [];
+
 async function judge(scenario: string): Promise<void> {
 	const outDir = join(here, ".out", scenario.replaceAll("/", "__"));
 	const main = join(specsRoot, scenario, "main.tsp");
@@ -155,12 +216,14 @@ async function judge(scenario: string): Promise<void> {
 		}
 	} catch (error) {
 		refused[scenario] = `compile threw: ${String(error).slice(0, 200)}`;
+		await judgeServerOnly(scenario, main, outDir);
 		return;
 	}
 	const errors = compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error");
 	const documents = existsSync(join(outDir, "openapi")) ? readdirSync(join(outDir, "openapi")) : [];
 	if (errors.length > 0 || documents.length === 0) {
 		refused[scenario] = errors.map((error) => error.code).join(", ") || "no document";
+		await judgeServerOnly(scenario, main, outDir);
 		return;
 	}
 	const collections = readdirSync(outDir).filter((name) =>
@@ -183,15 +246,42 @@ async function judge(scenario: string): Promise<void> {
 	judged.push(scenario);
 }
 
+/**
+ * A scenario `@typespec/openapi3` produces no document for, compiled without it and sent to the
+ * server generated from the same program. Skipped only where the server library refuses it too.
+ */
+async function judgeServerOnly(scenario: string, main: string, outDir: string): Promise<void> {
+	const compiled = await compileSpec(main, outDir, { hono: true });
+	if (compiled.diagnostics.some((diagnostic) => diagnostic.severity === "error")) {
+		serverRefused[scenario] = [
+			...new Set(
+				compiled.diagnostics
+					.filter((diagnostic) => diagnostic.severity === "error")
+					.map((error) => error.code),
+			),
+		].join(", ");
+		return;
+	}
+	const collections = readdirSync(outDir).filter((name) =>
+		name.endsWith("postman_collection.json"),
+	);
+	for (const file of collections) {
+		await judgeCollection(scenario, compiled.collection(file).item, undefined, compiled.serverDir);
+	}
+	serverOnly.push(scenario);
+}
+
 async function judgeCollection(
 	scenario: string,
 	items: readonly PostmanItem[],
-	document: OpenApiDocument,
+	document: OpenApiDocument | undefined,
 	serverDir: string,
 ): Promise<void> {
 	const ajv = new Ajv2020({ strict: false, allErrors: true, validateFormats: true });
 	addFormats.default(ajv);
-	ajv.addSchema(forRequests(document) as object, "https://document.test/openapi.json");
+	if (document !== undefined) {
+		ajv.addSchema(forRequests(document) as object, "https://document.test/openapi.json");
+	}
 
 	const refusals: Finding[] = [];
 	let app: Hono | undefined;
@@ -201,17 +291,27 @@ async function judgeCollection(
 		};
 		app = new Hono();
 		let current = "";
-		const handlers = new Proxy({}, { get: () => () => undefined });
+		/** What happened to the request being sent: a handler reached, or a hook's refusal. */
+		let reached = false;
+		let refusal: string | undefined;
+		const handlers = new Proxy(
+			{},
+			{
+				get: () => () => {
+					reached = true;
+					return undefined;
+				},
+			},
+		);
 		generated.registerRoutes(app, () => handlers, {
 			authorize: () => async (_c: unknown, next: () => Promise<void>) => next(),
 			context: () => ({}),
-			noContext: (c: { json: (b: unknown, s: number) => Response }) => c.json({}, 401),
+			noContext: (c: { json: (b: unknown, s: number) => Response }) => {
+				refusal = "401: no caller context was established";
+				return c.json({}, 401);
+			},
 			notAcceptable: (c: { json: (b: unknown, s: number) => Response }) => {
-				refusals.push({
-					scenario,
-					request: current,
-					problem: "406: the server offers nothing the Accept header asks for",
-				});
+				refusal = "406: the server offers nothing the Accept header asks for";
 				return c.json({}, 406);
 			},
 			invalid: (
@@ -219,15 +319,7 @@ async function judgeCollection(
 				c: { json: (b: unknown, s: number) => Response },
 			) => {
 				if (result.success) return undefined;
-				if (SERVER_DEFECTS[current] !== undefined) {
-					serverDefects.push(current);
-					return c.json({}, 400);
-				}
-				refusals.push({
-					scenario,
-					request: current,
-					problem: `400 from the generated validator: ${String(result.error).slice(0, 300)}`,
-				});
+				refusal = `400 from the generated validator: ${String(result.error).slice(0, 300)}`;
 				return c.json({}, 400);
 			},
 			respond: (c: { body: (b: null, s: number) => Response }) => c.body(null, 204),
@@ -290,12 +382,24 @@ async function judgeCollection(
 						.join("") + `--${boundary}--\r\n`;
 				headers.set("content-type", `multipart/form-data; boundary=${boundary}`);
 			}
-			await app.request(`/${path}${query === "" ? "" : `?${query}`}`, {
+			reached = false;
+			refusal = undefined;
+			const response = await app.request(`/${path}${query === "" ? "" : `?${query}`}`, {
 				method: request.method,
 				headers,
 				...(body === undefined ? {} : { body }),
 			});
 			requestsSent++;
+			if (reached) return;
+			if (SERVER_DEFECTS[current] !== undefined) {
+				serverDefects.push(current);
+				return;
+			}
+			refusals.push({
+				scenario,
+				request: current,
+				problem: refusal ?? `${response.status}: no handler was reached`,
+			});
 		};
 		for (const { item } of requestsOf({
 			info: { _postman_id: "", name: "", schema: "" },
@@ -305,6 +409,7 @@ async function judgeCollection(
 		}
 	}
 	findings.push(...refusals);
+	if (document === undefined) return;
 
 	for (const { item } of requestsOf({
 		info: { _postman_id: "", name: "", schema: "" },
@@ -394,6 +499,16 @@ describe("every generated request, judged by the document and the server built f
 			),
 		).toBe(true);
 		expect(unsendable.length).toBeLessThan(40);
+	});
+
+	it("still sends the scenarios with no document to the server generated from them", () => {
+		expect(serverOnly.toSorted()).toEqual(
+			Object.keys(ORACLE_REFUSALS)
+				.filter((scenario) => SERVER_REFUSALS[scenario] === undefined)
+				.toSorted(),
+		);
+		// Non-vacuity: the two scenarios this covers are the corpus's routes and its reserved words.
+		expect(serverOnly.length).toBeGreaterThanOrEqual(2);
 	});
 
 	it("has no server to send to only where the server library itself refuses the spec", () => {

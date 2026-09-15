@@ -33,3 +33,8 @@ namespace ParametersFixture;
 @route("/bounded") @get op bounded(@query @minValue(10) @maxValue(20) page: int32, @query @minLength(5) code: string): void;
 
 @route("/formats/{id}") @get op formats(@path @format("uuid") id: string, @query at: utcDateTime): void;
+
+/** A required record expands to nothing when empty, so it is never generated empty. */
+@route("/filters{/by}") @get op pathRecord(by: Record<int32>): void;
+
+@route("/tagged") @get op queryRecord(@query filter: Record<int32>): void;

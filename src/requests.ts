@@ -211,7 +211,8 @@ function deriveUrl(
 		split.fragment === undefined || fragment === undefined
 			? undefined
 			: expandValue(split.fragment, valueFor(fragment).value);
-	return { path, query: [], variables, hash };
+	const query = split.literalQuery.map(([key, value]) => param(key, value, false, undefined));
+	return { path, query, variables, hash };
 }
 
 /**
