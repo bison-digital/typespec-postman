@@ -12,7 +12,10 @@ Everything here was measured. Read it before changing the emitter.
 - **The registry rehearsal passed at `a27f730`** (2026-09-16): published to a local verdaccio,
   installed into an empty npm project from it with `@typespec/compiler`, `@typespec/http` and the new
   `@typespec/openapi3` peer, compiled `example/main.tsp`, and `cmp` against the committed collection
-  exited 0. The app import is the one release step left.
+  exited 0.
+- **Postman's own `collection migrate` and `collection lint` run on the committed collection**
+  (`test/reference/lint.test.ts`): 16 items scanned, 0 errors, 0 warnings, with a control Postman
+  refuses. The app's import dialogue is the one step no suite can take.
 
 ## The things most easily lost
 

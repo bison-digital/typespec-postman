@@ -38,6 +38,10 @@ worked example byte for byte.
 
 ## Confirm the Postman app import
 
+`test/reference/lint.test.ts` already runs Postman's own `collection migrate` and `collection lint`
+over the committed collection on every commit, so what the app reads is checked. What follows is the
+app's own import dialogue, which no suite can drive.
+
 Import `example/postman_collection.json` into the Postman app, into a personal workspace, and confirm
 the import reports no warnings and the requests, folders, auth and variables appear as the file states.
 This is the one check no suite can make; record the app version and the outcome in the changelog entry.
