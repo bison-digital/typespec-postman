@@ -36,10 +36,11 @@ Everything here was measured. Read it before changing the emitter.
   correct `authorize` refused anonymous callers the contract allows. Measured by request on
   `authentication/noauth/union` (401). The gate now passes the empty requirement; this emitter's run
   suite never depended on it, because it sends the credentialed alternative.
-- **typespec-http-zod refuses a multipart text part carrying a number.** `payload/multipart`
-  `non-string-float` declares `HttpPart<{ @body body: float64; @header contentType: "text/plain" }>`;
-  the validator is `z.number()`, so the text part the scenario documents is refused with a 400. Named in
-  `test/corpus/corpus.test.ts` as `SERVER_DEFECTS`.
+- **typespec-http-zod refused a multipart text part carrying a number. Fixed on its `main`
+  (`134ee96`), unreleased.** `HttpPart<float64>` was `z.number()` on the text a form carries. This
+  package resolves typespec-hono and typespec-http-zod from the registry, so `test/corpus/corpus.test.ts`
+  still names the request in `SERVER_DEFECTS`; the arm requiring every listed defect to occur fails the
+  day a released pair carries the fix, and that is when the entry is deleted.
 
 ## Open
 
