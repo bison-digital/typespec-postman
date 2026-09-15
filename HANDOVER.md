@@ -63,9 +63,10 @@ Everything here was measured. Read it before changing the emitter.
 
 ## Open
 
-- **Git history still carries the client's names.** `test/provenance.test.ts` spelled them in plain
-  text from the first commit; the tree is fixed, the history is not. Rewriting published history is
-  Zach's decision.
+- **GitHub still serves the pre-rewrite commits by SHA.** `test/provenance.test.ts` spelled the first
+  consumer's names in plain text from the first commit. The tree was fixed, and history was rewritten
+  with `git filter-repo --replace-text` and force-pushed on 2026-09-15 (no object in the new history
+  carries a term). The unreachable old commits stay viewable on GitHub until GitHub Support purges them.
 
 - **The Postman app import** has not been confirmed. It is the one acceptance check no suite can make;
   `docs/releasing.md` makes it a release step.
