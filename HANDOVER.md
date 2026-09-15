@@ -9,6 +9,10 @@ Everything here was measured. Read it before changing the emitter.
 - **Gates:** `pnpm build`, `pnpm test` (unit and system projects), `pnpm typecheck`, `pnpm lint`,
   `pnpm format:check`. `pnpm test` builds first because the compiler loads the emitter from `dist/`.
 - **The system project needs the Postman CLI on `PATH`** and fails without it.
+- **The registry rehearsal passed at `a27f730`** (2026-09-16): published to a local verdaccio,
+  installed into an empty npm project from it with `@typespec/compiler`, `@typespec/http` and the new
+  `@typespec/openapi3` peer, compiled `example/main.tsp`, and `cmp` against the committed collection
+  exited 0. The app import is the one release step left.
 
 ## The things most easily lost
 
