@@ -1,0 +1,54 @@
+name: Release
+
+# **Publishing is deliberate.** This runs only when a `v*` tag is pushed, or when somebody dispatches it
+# by hand on a tag. A merge to `main` publishes nothing.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      # `write`: the last step creates the GitHub release.
+      contents: write
+      # npm exchanges this for the signed provenance attestation.
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install the Postman CLI
+        run: |
+          curl -fsSL https://dl-cli.pstmn.io/install/linux64.sh | sh
+          postman --version
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+      # The full gate again, against the exact commit being published.
+      - run: pnpm test
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm format:check
+
+      - run: pnpm publish --access public --provenance --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # The notes ARE the changelog section, extracted rather than rewritten.
+      - name: Publish the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v v="## [$version]" 'index($0,v)==1{f=1;next} f&&/^## \[/{exit} f' CHANGELOG.md > /tmp/notes.md
+          test -s /tmp/notes.md
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
+            || gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file /tmp/notes.md

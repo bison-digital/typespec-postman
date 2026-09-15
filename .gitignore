@@ -1,0 +1,19 @@
+node_modules/
+dist/
+
+# Emitted output. A glob rather than a list of suite directories: an enumerated list goes stale the
+# first time a suite is added, and the failure mode is a generated file committed by accident.
+**/.out/
+**/.out-*/
+
+# `pnpm pack` writes here during the packaging oracle.
+*.tgz
+
+# IDE state. Nothing about one machine's editor belongs in a public repository.
+.idea/
+.vscode/
+*.iml
+
+# Redirected command output, and the report directory the Postman CLI creates by default.
+*.log
+postman-cli-reports/

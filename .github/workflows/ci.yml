@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Every Node major `engines` admits, which is `>=22`.
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+
+      # The run suite executes collections with the Postman CLI, the runner a team uses. The installer
+      # is Postman's own; the suite fails, rather than skips, when the binary is missing.
+      - name: Install the Postman CLI
+        run: |
+          curl -fsSL https://dl-cli.pstmn.io/install/linux64.sh | sh
+          postman --version
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm test
+      # LAST, always: it checks the tests too, and a green suite is not a clean typecheck.
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm format:check

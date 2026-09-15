@@ -1,0 +1,3 @@
+minimumReleaseAgeExclude:
+  - typespec-hono@0.22.0
+  - zod@4.6.2

@@ -1,0 +1,6 @@
+# The whole configuration a consumer needs to generate the committed collection beside this file.
+emit:
+  - typespec-postman
+options:
+  typespec-postman:
+    emitter-output-dir: "{project-root}"

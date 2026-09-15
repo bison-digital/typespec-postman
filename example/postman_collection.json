@@ -1,0 +1,532 @@
+{
+	"info": {
+		"_postman_id": "7e275b1e-edb5-8113-a020-5fbafafd7aff",
+		"name": "Bookshop",
+		"description": "A small bookshop: authors, and the books each author has written.\n\nEvery construct here is one the emitter derives something from. A templated server with a default,\nbearer auth on the service with one operation open to anyone, an API key required alongside the\nbearer token, a required header, read-only ids, a paged list, a resource nested under another, a\ndelete at both levels, and an example on an update.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"id": "2723c7f6-e98a-8d19-8f71-7b4d67df2798",
+			"name": "health",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"type": "text/javascript",
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});"
+						]
+					}
+				}
+			],
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json"
+					}
+				],
+				"url": {
+					"raw": "{{baseUrl}}/health",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"health"
+					]
+				},
+				"description": "Whether the service is up. Open to anyone."
+			},
+			"response": []
+		},
+		{
+			"id": "0d7cdb0d-9145-8762-94e0-4405a0f05b4b",
+			"name": "Authors",
+			"item": [
+				{
+					"id": "2c1b184f-8886-84e1-9844-800cd39296df",
+					"name": "create",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"pm.test(\"Response has an id\", function () {",
+									"    pm.expect(pm.response.json()[\"id\"]).to.be.a(\"string\");",
+									"});",
+									"pm.collectionVariables.set(\"authorId\", pm.response.json()[\"id\"]);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Idempotency-Key",
+								"value": "idempotencyKey"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"name\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/authors",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"authors"
+							]
+						},
+						"description": "Add an author. A retried request with the same key creates nothing new."
+					},
+					"response": []
+				},
+				{
+					"id": "c059f825-a3ad-87f3-ba30-0302026b21c3",
+					"name": "list",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"pm.test(\"Response items is an array\", function () {",
+									"    pm.expect(pm.response.json()[\"items\"]).to.be.an(\"array\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/authors",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"authors"
+							],
+							"query": [
+								{
+									"key": "limit",
+									"value": "0",
+									"disabled": true
+								},
+								{
+									"key": "pageToken",
+									"value": "pageToken",
+									"disabled": true
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"id": "375f0e36-f2ac-807a-ab44-d85c4d878468",
+					"name": "read",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"pm.test(\"Returns the requested author\", function () {",
+									"    pm.expect(String(pm.response.json()[\"id\"])).to.eql(pm.variables.get(\"authorId\"));",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/authors/{{authorId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"authors",
+								"{{authorId}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"id": "a5fdf58a-9e5b-81a7-9492-e6fd559dce17",
+					"name": "update",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"pm.test(\"bio was updated\", function () {",
+									"    pm.expect(pm.response.json()[\"bio\"]).to.eql(\"Writes about bridges.\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/merge-patch+json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"bio\": \"Writes about bridges.\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/authors/{{authorId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"authors",
+								"{{authorId}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"id": "cea1776c-cb1e-8d37-95ff-0bceebbb9997",
+					"name": "Books",
+					"item": [
+						{
+							"id": "bdd91b42-3533-8152-88e3-1582b86d515d",
+							"name": "create",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"pm.test(\"Status code is 201\", function () {",
+											"    pm.response.to.have.status(201);",
+											"});",
+											"pm.test(\"Response has an id\", function () {",
+											"    pm.expect(pm.response.json()[\"id\"]).to.be.a(\"string\");",
+											"});",
+											"pm.collectionVariables.set(\"bookId\", pm.response.json()[\"id\"]);"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									},
+									{
+										"key": "Accept",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"title\": \"title\",\n  \"pages\": 1\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/authors/{{authorId}}/books",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"authors",
+										"{{authorId}}",
+										"books"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"id": "e411c19b-5841-88a1-88e8-744f181a3ffb",
+							"name": "list",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"pm.test(\"Status code is 200\", function () {",
+											"    pm.response.to.have.status(200);",
+											"});",
+											"pm.test(\"Response is an array\", function () {",
+											"    pm.expect(pm.response.json()).to.be.an(\"array\");",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Accept",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/authors/{{authorId}}/books",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"authors",
+										"{{authorId}}",
+										"books"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"id": "23ab7ffe-5410-8802-bc23-abf69d74d012",
+							"name": "read",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"pm.test(\"Status code is 200\", function () {",
+											"    pm.response.to.have.status(200);",
+											"});",
+											"pm.test(\"Returns the requested book\", function () {",
+											"    pm.expect(String(pm.response.json()[\"id\"])).to.eql(pm.variables.get(\"bookId\"));",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Accept",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/authors/{{authorId}}/books/{{bookId}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"authors",
+										"{{authorId}}",
+										"books",
+										"{{bookId}}"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"id": "03726df7-23d6-8993-aa74-dc22a421688c",
+							"name": "delete",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"pm.test(\"Status code is 204\", function () {",
+											"    pm.response.to.have.status(204);",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "DELETE",
+								"header": [
+									{
+										"key": "Accept",
+										"value": "application/json"
+									},
+									{
+										"key": "X-Shop-Key",
+										"value": "{{shopKey}}"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/authors/{{authorId}}/books/{{bookId}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"authors",
+										"{{authorId}}",
+										"books",
+										"{{bookId}}"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"id": "a253e1d8-db77-8e8d-a058-c3d4703ee486",
+					"name": "delete",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 204\", function () {",
+									"    pm.response.to.have.status(204);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							},
+							{
+								"key": "X-Shop-Key",
+								"value": "{{shopKey}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/authors/{{authorId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"authors",
+								"{{authorId}}"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{bearerAuth}}",
+				"type": "string"
+			}
+		]
+	},
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "{{endpoint}}/v1",
+			"type": "string",
+			"description": "The bookshop API"
+		},
+		{
+			"key": "endpoint",
+			"value": "http://localhost:8080",
+			"type": "string"
+		},
+		{
+			"key": "bearerAuth",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "shopKey",
+			"value": "",
+			"type": "string",
+			"description": "Required alongside the bearer token by operations that destroy data."
+		},
+		{
+			"key": "authorId",
+			"value": "",
+			"type": "string",
+			"description": "The id of the author most recently created in this run."
+		},
+		{
+			"key": "bookId",
+			"value": "",
+			"type": "string",
+			"description": "The id of the book most recently created in this run."
+		}
+	]
+}

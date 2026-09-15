@@ -1,0 +1,92 @@
+{
+	"name": "typespec-postman",
+	"version": "0.1.0",
+	"description": "TypeSpec emitter: generate a Postman Collection v2.1 from an HTTP service definition, with requests, auth, chained ids and assertions derived from the spec.",
+	"keywords": [
+		"api-testing",
+		"codegen",
+		"postman",
+		"postman-collection",
+		"typespec",
+		"typespec-emitter"
+	],
+	"homepage": "https://github.com/bison-digital/typespec-postman#readme",
+	"bugs": {
+		"url": "https://github.com/bison-digital/typespec-postman/issues"
+	},
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/bison-digital/typespec-postman.git"
+	},
+	"files": [
+		"!dist/test/**",
+		"dist/**",
+		"lib/*.tsp"
+	],
+	"type": "module",
+	"main": "dist/src/index.js",
+	"exports": {
+		".": {
+			"typespec": "./lib/main.tsp",
+			"types": "./dist/src/index.d.ts",
+			"default": "./dist/src/index.js"
+		}
+	},
+	"publishConfig": {
+		"access": "public",
+		"provenance": true
+	},
+	"scripts": {
+		"build": "tsc -p tsconfig.build.json",
+		"test": "tsc -p tsconfig.build.json && vitest run",
+		"test:unit": "tsc -p tsconfig.build.json && vitest run --project unit",
+		"typecheck": "tsc -p tsconfig.json",
+		"lint": "oxlint src/ test/",
+		"format": "oxfmt",
+		"format:check": "oxfmt --check"
+	},
+	"devDependencies": {
+		"@hono/node-server": "2.1.1",
+		"@hono/zod-validator": "^0.9.1",
+		"@types/node": "^26.5.1",
+		"@typespec/compiler": "1.16.0",
+		"@typespec/events": "0.86.0",
+		"@typespec/http": "1.16.0",
+		"@typespec/http-specs": "0.1.0-alpha.43",
+		"@typespec/openapi": "1.16.0",
+		"@typespec/openapi3": "1.16.0",
+		"@typespec/rest": "0.86.0",
+		"@typespec/sse": "0.86.0",
+		"@typespec/streams": "0.86.0",
+		"@typespec/versioning": "0.86.0",
+		"@typespec/xml": "0.86.0",
+		"ajv": "8.20.0",
+		"ajv-draft-04": "1.0.0",
+		"ajv-formats": "3.0.1",
+		"hono": "^4.13.7",
+		"openapi-to-postmanv2": "6.3.3",
+		"oxfmt": "^0.67.0",
+		"oxlint": "^1.82.0",
+		"typescript": "~7.0.2",
+		"typespec-hono": "0.22.0",
+		"typespec-postman": "link:.",
+		"vitest": "^5.0.0",
+		"zod": "^4.6.2"
+	},
+	"peerDependencies": {
+		"@typespec/compiler": "^1.16.0",
+		"@typespec/http": "^1.16.0",
+		"@typespec/versioning": "^0.86.0"
+	},
+	"peerDependenciesMeta": {
+		"@typespec/versioning": {
+			"optional": true
+		}
+	},
+	"engines": {
+		"node": ">=22.0.0"
+	},
+	"packageManager": "pnpm@11.21.0",
+	"tspMain": "lib/main.tsp"
+}
