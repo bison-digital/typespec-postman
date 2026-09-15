@@ -2,6 +2,7 @@ import { type EmitContext, emitFile, NoTarget, resolvePath } from "@typespec/com
 import { deriveCollection } from "./collection.js";
 import { type EmitterOptions, reportDiagnostic } from "./lib.js";
 import { renderCollection } from "./render.js";
+import { loadResponseSchemas } from "./schemas.js";
 import { selectServices } from "./select.js";
 
 /**
@@ -23,9 +24,13 @@ export async function $onEmit(context: EmitContext<EmitterOptions>): Promise<voi
 	for (const entry of selected) {
 		const sharing = byPath.get(entry.outputFile) ?? [];
 		if (sharing.length > 1) continue;
-		const plan = deriveCollection(program, entry.service, {
-			collectionAuth: context.options["collection-auth"] !== false,
-		});
+		const schemas = await loadResponseSchemas(program, entry.service);
+		const plan = deriveCollection(
+			program,
+			entry.service,
+			{ collectionAuth: context.options["collection-auth"] !== false },
+			schemas,
+		);
 		await emitFile(program, {
 			path: resolvePath(context.emitterOutputDir, entry.outputFile),
 			content: renderCollection(plan),

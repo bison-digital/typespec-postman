@@ -350,7 +350,7 @@ export function orderRequests(
  * position in the file. **Not the library's order**, which lists a namespace's own operations before
  * every interface in it regardless of where the author wrote them.
  */
-function declarationOrder(
+export function declarationOrder(
 	program: Program,
 	operations: readonly HttpOperation[],
 ): Map<HttpOperation, number> {

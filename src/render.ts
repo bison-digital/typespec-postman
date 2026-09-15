@@ -241,6 +241,64 @@ function renderAssertion(assertion: PlanAssertion): string[] {
 				`    pm.expect(${jsonAt([assertion.field])}).to.eql(${JSON.stringify(assertion.value)});`,
 				"});",
 			];
+		/**
+		 * `headers.get(...)` with `include`, never `to.have.header(name, value)`: the second is exact
+		 * equality and fails `application/json; charset=utf-8`. Measured on the Postman CLI.
+		 */
+		case "content-type": {
+			const [only] = assertion.types;
+			if (assertion.types.length === 1 && only !== undefined) {
+				return [
+					`pm.test(${JSON.stringify(`Content-Type header is ${only}`)}, function () {`,
+					`    pm.expect(String(pm.response.headers.get("Content-Type")).toLowerCase()).to.include(${JSON.stringify(only.toLowerCase())});`,
+					"});",
+				];
+			}
+			return [
+				`pm.test(${JSON.stringify(`Content-Type header is one of ${assertion.types.join(", ")}`)}, function () {`,
+				`    const contentType = String(pm.response.headers.get("Content-Type")).toLowerCase();`,
+				`    pm.expect(${JSON.stringify(assertion.types.map((type) => type.toLowerCase()))}.some((type) => contentType.includes(type))).to.eql(true);`,
+				"});",
+			];
+		}
+		case "header-present":
+			return [
+				`pm.test(${JSON.stringify(`${assertion.name} header is present`)}, function () {`,
+				`    pm.response.to.have.header(${JSON.stringify(assertion.name)});`,
+				"});",
+			];
+		case "no-body":
+			return [
+				'pm.test("Response has no body", function () {',
+				"    pm.response.to.not.be.withBody;",
+				"});",
+			];
+		/**
+		 * `unknownFormats` names the formats Ajv 6 does not know, or `jsonSchema` throws on a valid body.
+		 * With several statuses, the schema is the one for the status the response answered with; the
+		 * status assertion already refuses a status the operation does not declare.
+		 */
+		case "json-schema": {
+			const options = `{ unknownFormats: ${JSON.stringify(assertion.unknownFormats)} }`;
+			const [only] = assertion.schemas;
+			if (assertion.schemas.length === 1 && only !== undefined) {
+				return [
+					'pm.test("Response matches the schema", function () {',
+					`    pm.response.to.have.jsonSchema(${JSON.stringify(only.schema)}, ${options});`,
+					"});",
+				];
+			}
+			const byStatus = Object.fromEntries(
+				assertion.schemas.map((entry) => [String(entry.status), entry.schema]),
+			);
+			return [
+				'pm.test("Response matches the schema for its status", function () {',
+				`    const schemas = ${JSON.stringify(byStatus)};`,
+				"    pm.expect(schemas).to.have.property(String(pm.response.code));",
+				`    pm.response.to.have.jsonSchema(schemas[String(pm.response.code)], ${options});`,
+				"});",
+			];
+		}
 	}
 }
 

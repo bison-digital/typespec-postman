@@ -65,6 +65,7 @@
 		"ajv": "8.20.0",
 		"ajv-draft-04": "1.0.0",
 		"ajv-formats": "3.0.1",
+		"ajv6": "npm:ajv@6.12.5",
 		"hono": "^4.13.7",
 		"openapi-to-postmanv2": "6.3.3",
 		"oxfmt": "^0.67.0",
@@ -78,6 +79,7 @@
 	"peerDependencies": {
 		"@typespec/compiler": "^1.16.0",
 		"@typespec/http": "^1.16.0",
+		"@typespec/openapi3": "^1.16.0",
 		"@typespec/versioning": "^0.86.0"
 	},
 	"peerDependenciesMeta": {

@@ -37,7 +37,15 @@ Everything here was measured. Read it before changing the emitter.
    "Returns the requested widget" fails through the CLI (`test/run/edges.tsp`).
 10. **The server judge's verdict is reaching a handler.** A wrong route answers 404 from the router
     without any validator seeing it; the judge once stayed green with every bodiless URL broken.
-11. **The provenance gate holds private terms as SHA-256 digests.** The first version spelled them in
+11. **Response schemas come from `getOpenAPI3` in-process, converted to draft-07.** The Postman
+    sandbox is Ajv 6.12.5: it ignores `prefixItems` and `unevaluatedProperties`, refuses a 2020-12
+    `$schema`, cannot resolve `#/components`, and throws on a format it does not know.
+    `src/draft07.ts` rewrites each, only ever toward accepting more, and
+    `test/schemas/fidelity.test.ts` holds it to the document's verdict under `ajv@6.12.5` (`ajv6`).
+12. **Hono merges the previous response's headers into a replacement `c.res`**, so a test server
+    that edits response headers has to clear `c.res` first. And a 204 cannot carry a body on the
+    wire, so the no-body mutant answers 200.
+13. **The provenance gate holds private terms as SHA-256 digests.** The first version spelled them in
     plain text in this public repository. Never add a term in plain text; add its digest.
 
 ## Findings in sibling packages, not fixed here

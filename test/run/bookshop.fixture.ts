@@ -15,7 +15,9 @@ export type Mutant =
 	| "list-returns-object"
 	| "bare-list-returns-object"
 	| "read-returns-other"
-	| "update-ignores-patch";
+	| "update-ignores-patch"
+	| "read-returns-malformed"
+	| "read-finds-anything";
 
 type Input = Record<string, unknown>;
 
@@ -53,6 +55,11 @@ export function bookshopHandlers(
 			mutant === "list-returns-object" ? { items: {} } : { items: [...authors.values()] },
 		Authors_read: (_ctx, input) => {
 			const author = authors.get(String(input["authorId"]));
+			if (mutant === "read-returns-malformed" && author !== undefined)
+				return { ...author, name: 5 };
+			if (mutant === "read-finds-anything" && author === undefined) {
+				return { id: String(input["authorId"]), name: "Anyone" };
+			}
 			if (author === undefined) return fail(404, "No such author");
 			return mutant === "read-returns-other" ? { ...author, id: randomUUID() } : author;
 		},

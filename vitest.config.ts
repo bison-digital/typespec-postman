@@ -11,7 +11,12 @@ import { defineConfig } from "vitest/config";
  * runs both, so the split is for the edit loop (`pnpm test:unit`) and never takes a suite out of the
  * gate.
  */
-const SYSTEM = ["test/run/**/*.test.ts", "test/corpus/**/*.test.ts", "test/reference/**/*.test.ts"];
+const SYSTEM = [
+	"test/run/**/*.test.ts",
+	"test/corpus/**/*.test.ts",
+	"test/reference/**/*.test.ts",
+	"test/schemas/**/*.test.ts",
+];
 
 export default defineConfig({
 	test: {

@@ -169,7 +169,14 @@ function facetsOf(collection: PostmanCollection): Map<string, RequestFacets> {
 			});
 		}
 	};
-	walk(collection.item, collection.auth);
+	/**
+	 * The `Error cases` folder is skipped: its requests are operations sent a second time to fail as
+	 * their spec declares, which an importer never writes, so they are not facets the two share.
+	 */
+	walk(
+		collection.item.filter((item) => !(item.item !== undefined && item.name === "Error cases")),
+		collection.auth,
+	);
 	return facets;
 }
 

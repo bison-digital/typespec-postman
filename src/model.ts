@@ -118,6 +118,21 @@ export type PlanAssertion =
 			readonly kind: "field-updated";
 			readonly field: string;
 			readonly value: string | number | boolean;
+	  }
+	/** The response's media type is one the operation declares for the status it answers with. */
+	| { readonly kind: "content-type"; readonly types: readonly string[] }
+	/** A header every declared response for the expected statuses marks required. */
+	| { readonly kind: "header-present"; readonly name: string }
+	/** Every declared response for the expected statuses has no body. */
+	| { readonly kind: "no-body" }
+	/**
+	 * The body satisfies the schema declared for the status the response answers with, as draft-07
+	 * the Postman sandbox checks. One entry per status.
+	 */
+	| {
+			readonly kind: "json-schema";
+			readonly schemas: readonly { readonly status: number; readonly schema: unknown }[];
+			readonly unknownFormats: readonly string[];
 	  };
 
 export type StatusMatch = number | { readonly start: number; readonly end: number };

@@ -12,8 +12,10 @@ import { deriveAssertions } from "./assertions.js";
 import { reportDiagnostic } from "./lib.js";
 import type { AuthSetting, CollectionPlan, PlanNode, PlanVariable } from "./model.js";
 import { type OrderedNode, orderRequests } from "./order.js";
+import { deriveErrorCases } from "./errors.js";
 import { deriveRequest } from "./requests.js";
 import { deriveChains } from "./resources.js";
+import type { ResponseSchemas } from "./schemas.js";
 import { deriveServerVariables } from "./servers.js";
 import type { ValueContext } from "./values.js";
 
@@ -28,6 +30,7 @@ export function deriveCollection(
 	program: Program,
 	service: HttpService,
 	options: CollectionOptions,
+	schemas: ResponseSchemas,
 ): CollectionPlan {
 	const namespace = service.namespace;
 	const fullName = getNamespaceFullName(namespace);
@@ -87,11 +90,29 @@ export function deriveCollection(
 			headers: request.headers,
 			body: request.body,
 			auth: sameSetting(requirement.setting, inherited) ? undefined : requirement.setting,
-			assertions: deriveAssertions(context, operation, chains.roles(operation), request.sent),
+			assertions: deriveAssertions(
+				context,
+				operation,
+				chains.roles(operation),
+				request.sent,
+				schemas,
+			),
 		};
 	};
 
-	const items = tree.map((node) => build(node, collectionAuth));
+	const errorCases = deriveErrorCases({
+		context,
+		operations,
+		chains,
+		auth,
+		schemas,
+		fullName,
+		collectionAuth,
+	});
+	const items = [
+		...tree.map((node) => build(node, collectionAuth)),
+		...(errorCases === undefined ? [] : [errorCases]),
+	];
 
 	return {
 		name: getService(program, namespace)?.title ?? namespace.name,

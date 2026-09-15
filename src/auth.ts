@@ -24,9 +24,11 @@ export interface Requirement {
 	/** Headers (including `Cookie`) and query parameters that carry the rest of the requirement. */
 	readonly headers: readonly PlanParam[];
 	readonly query: readonly PlanParam[];
+	/** Whether a caller presenting nothing is also admitted: an option that is only `NoAuth`. */
+	readonly anonymous: boolean;
 }
 
-const NO_AUTH: Requirement = { setting: { kind: "none" }, headers: [], query: [] };
+const NO_AUTH: Requirement = { setting: { kind: "none" }, headers: [], query: [], anonymous: true };
 
 export interface AuthDerivation {
 	/** The requirement the service namespace itself declares, or `undefined` when it declares none. */
@@ -184,7 +186,12 @@ export function deriveAuth(program: Program, service: HttpService): AuthDerivati
 				description: undefined,
 			});
 		}
-		return { setting: setting ?? { kind: "none" }, headers, query };
+		return {
+			setting: setting ?? { kind: "none" },
+			headers,
+			query,
+			anonymous: options.some((option) => option.every((scheme) => scheme.type === "noAuth")),
+		};
 	};
 
 	const fromAuthentication = (authentication: Authentication, name: string): Requirement =>

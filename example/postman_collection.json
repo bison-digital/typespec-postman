@@ -17,6 +17,12 @@
 						"exec": [
 							"pm.test(\"Status code is 200\", function () {",
 							"    pm.response.to.have.status(200);",
+							"});",
+							"pm.test(\"Content-Type header is application/json\", function () {",
+							"    pm.expect(String(pm.response.headers.get(\"Content-Type\")).toLowerCase()).to.include(\"application/json\");",
+							"});",
+							"pm.test(\"Response matches the schema\", function () {",
+							"    pm.response.to.have.jsonSchema({\"type\":\"object\",\"properties\":{\"status\":{\"type\":\"string\",\"enum\":[\"ok\"]}},\"required\":[\"status\"]}, { unknownFormats: [] });",
 							"});"
 						]
 					}
@@ -61,6 +67,15 @@
 								"exec": [
 									"pm.test(\"Status code is 201\", function () {",
 									"    pm.response.to.have.status(201);",
+									"});",
+									"pm.test(\"Content-Type header is application/json\", function () {",
+									"    pm.expect(String(pm.response.headers.get(\"Content-Type\")).toLowerCase()).to.include(\"application/json\");",
+									"});",
+									"pm.test(\"location header is present\", function () {",
+									"    pm.response.to.have.header(\"location\");",
+									"});",
+									"pm.test(\"Response matches the schema\", function () {",
+									"    pm.response.to.have.jsonSchema({\"allOf\":[{\"$ref\":\"#/$defs/Author\"}],\"$defs\":{\"Author\":{\"type\":\"object\",\"required\":[\"id\",\"name\"],\"properties\":{\"id\":{\"type\":\"string\",\"format\":\"uuid\"},\"name\":{\"type\":\"string\",\"minLength\":1},\"bio\":{\"type\":\"string\"}}}}}, { unknownFormats: [] });",
 									"});",
 									"pm.test(\"Response has an id\", function () {",
 									"    pm.expect(pm.response.json()[\"id\"]).to.be.a(\"string\");",
@@ -120,6 +135,12 @@
 									"pm.test(\"Status code is 200\", function () {",
 									"    pm.response.to.have.status(200);",
 									"});",
+									"pm.test(\"Content-Type header is application/json\", function () {",
+									"    pm.expect(String(pm.response.headers.get(\"Content-Type\")).toLowerCase()).to.include(\"application/json\");",
+									"});",
+									"pm.test(\"Response matches the schema\", function () {",
+									"    pm.response.to.have.jsonSchema({\"allOf\":[{\"$ref\":\"#/$defs/AuthorPage\"}],\"$defs\":{\"Author\":{\"type\":\"object\",\"required\":[\"id\",\"name\"],\"properties\":{\"id\":{\"type\":\"string\",\"format\":\"uuid\"},\"name\":{\"type\":\"string\",\"minLength\":1},\"bio\":{\"type\":\"string\"}}},\"AuthorPage\":{\"type\":\"object\",\"required\":[\"items\"],\"properties\":{\"items\":{\"type\":\"array\",\"items\":{\"$ref\":\"#/$defs/Author\"}},\"nextPageToken\":{\"type\":\"string\"}}}}}, { unknownFormats: [] });",
+									"});",
 									"pm.test(\"Response items is an array\", function () {",
 									"    pm.expect(pm.response.json()[\"items\"]).to.be.an(\"array\");",
 									"});"
@@ -171,6 +192,12 @@
 									"pm.test(\"Status code is 200\", function () {",
 									"    pm.response.to.have.status(200);",
 									"});",
+									"pm.test(\"Content-Type header is application/json\", function () {",
+									"    pm.expect(String(pm.response.headers.get(\"Content-Type\")).toLowerCase()).to.include(\"application/json\");",
+									"});",
+									"pm.test(\"Response matches the schema\", function () {",
+									"    pm.response.to.have.jsonSchema({\"allOf\":[{\"$ref\":\"#/$defs/Author\"}],\"$defs\":{\"Author\":{\"type\":\"object\",\"required\":[\"id\",\"name\"],\"properties\":{\"id\":{\"type\":\"string\",\"format\":\"uuid\"},\"name\":{\"type\":\"string\",\"minLength\":1},\"bio\":{\"type\":\"string\"}}}}}, { unknownFormats: [] });",
+									"});",
 									"pm.test(\"Returns the requested author\", function () {",
 									"    pm.expect(String(pm.response.json()[\"id\"])).to.eql(pm.variables.get(\"authorId\"));",
 									"});"
@@ -210,6 +237,12 @@
 								"exec": [
 									"pm.test(\"Status code is 200\", function () {",
 									"    pm.response.to.have.status(200);",
+									"});",
+									"pm.test(\"Content-Type header is application/json\", function () {",
+									"    pm.expect(String(pm.response.headers.get(\"Content-Type\")).toLowerCase()).to.include(\"application/json\");",
+									"});",
+									"pm.test(\"Response matches the schema\", function () {",
+									"    pm.response.to.have.jsonSchema({\"allOf\":[{\"$ref\":\"#/$defs/Author\"}],\"$defs\":{\"Author\":{\"type\":\"object\",\"required\":[\"id\",\"name\"],\"properties\":{\"id\":{\"type\":\"string\",\"format\":\"uuid\"},\"name\":{\"type\":\"string\",\"minLength\":1},\"bio\":{\"type\":\"string\"}}}}}, { unknownFormats: [] });",
 									"});",
 									"pm.test(\"bio was updated\", function () {",
 									"    pm.expect(pm.response.json()[\"bio\"]).to.eql(\"Writes about bridges.\");",
@@ -268,6 +301,15 @@
 											"pm.test(\"Status code is 201\", function () {",
 											"    pm.response.to.have.status(201);",
 											"});",
+											"pm.test(\"Content-Type header is application/json\", function () {",
+											"    pm.expect(String(pm.response.headers.get(\"Content-Type\")).toLowerCase()).to.include(\"application/json\");",
+											"});",
+											"pm.test(\"location header is present\", function () {",
+											"    pm.response.to.have.header(\"location\");",
+											"});",
+											"pm.test(\"Response matches the schema\", function () {",
+											"    pm.response.to.have.jsonSchema({\"allOf\":[{\"$ref\":\"#/$defs/Book\"}],\"$defs\":{\"Book\":{\"type\":\"object\",\"required\":[\"id\",\"title\",\"pages\"],\"properties\":{\"id\":{\"type\":\"string\",\"format\":\"uuid\"},\"title\":{\"type\":\"string\",\"minLength\":1},\"pages\":{\"type\":\"integer\",\"format\":\"int32\",\"minimum\":1}}}}}, { unknownFormats: [\"int32\"] });",
+											"});",
 											"pm.test(\"Response has an id\", function () {",
 											"    pm.expect(pm.response.json()[\"id\"]).to.be.a(\"string\");",
 											"});",
@@ -323,6 +365,12 @@
 											"pm.test(\"Status code is 200\", function () {",
 											"    pm.response.to.have.status(200);",
 											"});",
+											"pm.test(\"Content-Type header is application/json\", function () {",
+											"    pm.expect(String(pm.response.headers.get(\"Content-Type\")).toLowerCase()).to.include(\"application/json\");",
+											"});",
+											"pm.test(\"Response matches the schema\", function () {",
+											"    pm.response.to.have.jsonSchema({\"type\":\"array\",\"items\":{\"$ref\":\"#/$defs/Book\"},\"$defs\":{\"Book\":{\"type\":\"object\",\"required\":[\"id\",\"title\",\"pages\"],\"properties\":{\"id\":{\"type\":\"string\",\"format\":\"uuid\"},\"title\":{\"type\":\"string\",\"minLength\":1},\"pages\":{\"type\":\"integer\",\"format\":\"int32\",\"minimum\":1}}}}}, { unknownFormats: [\"int32\"] });",
+											"});",
 											"pm.test(\"Response is an array\", function () {",
 											"    pm.expect(pm.response.json()).to.be.an(\"array\");",
 											"});"
@@ -363,6 +411,12 @@
 										"exec": [
 											"pm.test(\"Status code is 200\", function () {",
 											"    pm.response.to.have.status(200);",
+											"});",
+											"pm.test(\"Content-Type header is application/json\", function () {",
+											"    pm.expect(String(pm.response.headers.get(\"Content-Type\")).toLowerCase()).to.include(\"application/json\");",
+											"});",
+											"pm.test(\"Response matches the schema\", function () {",
+											"    pm.response.to.have.jsonSchema({\"allOf\":[{\"$ref\":\"#/$defs/Book\"}],\"$defs\":{\"Book\":{\"type\":\"object\",\"required\":[\"id\",\"title\",\"pages\"],\"properties\":{\"id\":{\"type\":\"string\",\"format\":\"uuid\"},\"title\":{\"type\":\"string\",\"minLength\":1},\"pages\":{\"type\":\"integer\",\"format\":\"int32\",\"minimum\":1}}}}}, { unknownFormats: [\"int32\"] });",
 											"});",
 											"pm.test(\"Returns the requested book\", function () {",
 											"    pm.expect(String(pm.response.json()[\"id\"])).to.eql(pm.variables.get(\"bookId\"));",
@@ -405,6 +459,9 @@
 										"exec": [
 											"pm.test(\"Status code is 204\", function () {",
 											"    pm.response.to.have.status(204);",
+											"});",
+											"pm.test(\"Response has no body\", function () {",
+											"    pm.response.to.not.be.withBody;",
 											"});"
 										]
 									}
@@ -450,6 +507,9 @@
 								"exec": [
 									"pm.test(\"Status code is 204\", function () {",
 									"    pm.response.to.have.status(204);",
+									"});",
+									"pm.test(\"Response has no body\", function () {",
+									"    pm.response.to.not.be.withBody;",
 									"});"
 								]
 							}
@@ -465,6 +525,327 @@
 							{
 								"key": "X-Shop-Key",
 								"value": "{{shopKey}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/authors/{{authorId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"authors",
+								"{{authorId}}"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"id": "3d45a79a-486f-8896-ae30-77b69449093d",
+			"name": "Error cases",
+			"description": "Requests the spec says must fail, each asserting the failure it declares. Generated after every success case.",
+			"item": [
+				{
+					"id": "cd7781e5-5296-8d1a-80a3-be87d55d1af6",
+					"name": "read: not found",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 404\", function () {",
+									"    pm.response.to.have.status(404);",
+									"});",
+									"pm.test(\"Content-Type header is application/json\", function () {",
+									"    pm.expect(String(pm.response.headers.get(\"Content-Type\")).toLowerCase()).to.include(\"application/json\");",
+									"});",
+									"pm.test(\"Response matches the schema\", function () {",
+									"    pm.response.to.have.jsonSchema({\"allOf\":[{\"$ref\":\"#/$defs/NotFound\"}],\"$defs\":{\"NotFound\":{\"type\":\"object\",\"required\":[\"title\"],\"properties\":{\"title\":{\"type\":\"string\"}}}}}, { unknownFormats: [] });",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/authors/00000000-0000-0000-0000-000000000000",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"authors",
+								"00000000-0000-0000-0000-000000000000"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"id": "6136bf2c-a929-8c6e-a8d7-8db9fbd77736",
+					"name": "read: not found",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 404\", function () {",
+									"    pm.response.to.have.status(404);",
+									"});",
+									"pm.test(\"Content-Type header is application/json\", function () {",
+									"    pm.expect(String(pm.response.headers.get(\"Content-Type\")).toLowerCase()).to.include(\"application/json\");",
+									"});",
+									"pm.test(\"Response matches the schema\", function () {",
+									"    pm.response.to.have.jsonSchema({\"allOf\":[{\"$ref\":\"#/$defs/NotFound\"}],\"$defs\":{\"NotFound\":{\"type\":\"object\",\"required\":[\"title\"],\"properties\":{\"title\":{\"type\":\"string\"}}}}}, { unknownFormats: [] });",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/authors/{{authorId}}/books/00000000-0000-0000-0000-000000000000",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"authors",
+								"{{authorId}}",
+								"books",
+								"00000000-0000-0000-0000-000000000000"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"id": "f9ae6535-1672-89e2-8e08-56243cc90db6",
+					"name": "create: invalid body",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 400\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"pm.test(\"Content-Type header is application/json\", function () {",
+									"    pm.expect(String(pm.response.headers.get(\"Content-Type\")).toLowerCase()).to.include(\"application/json\");",
+									"});",
+									"pm.test(\"Response matches the schema\", function () {",
+									"    pm.response.to.have.jsonSchema({\"allOf\":[{\"$ref\":\"#/$defs/Invalid\"}],\"$defs\":{\"Invalid\":{\"type\":\"object\",\"required\":[\"title\"],\"properties\":{\"title\":{\"type\":\"string\"}}}}}, { unknownFormats: [] });",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Idempotency-Key",
+								"value": "idempotencyKey"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/authors",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"authors"
+							]
+						},
+						"description": "Add an author. A retried request with the same key creates nothing new."
+					},
+					"response": []
+				},
+				{
+					"id": "f948d896-450c-866c-a51d-ad03dd1de616",
+					"name": "create: invalid body",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 400\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"pm.test(\"Content-Type header is application/json\", function () {",
+									"    pm.expect(String(pm.response.headers.get(\"Content-Type\")).toLowerCase()).to.include(\"application/json\");",
+									"});",
+									"pm.test(\"Response matches the schema\", function () {",
+									"    pm.response.to.have.jsonSchema({\"allOf\":[{\"$ref\":\"#/$defs/Invalid\"}],\"$defs\":{\"Invalid\":{\"type\":\"object\",\"required\":[\"title\"],\"properties\":{\"title\":{\"type\":\"string\"}}}}}, { unknownFormats: [] });",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"pages\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/authors/{{authorId}}/books",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"authors",
+								"{{authorId}}",
+								"books"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"id": "65b3079f-28b7-8fb8-a2a0-c0512bf13cd6",
+					"name": "create: unauthorized",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 401\", function () {",
+									"    pm.response.to.have.status(401);",
+									"});",
+									"pm.test(\"Content-Type header is application/json\", function () {",
+									"    pm.expect(String(pm.response.headers.get(\"Content-Type\")).toLowerCase()).to.include(\"application/json\");",
+									"});",
+									"pm.test(\"Response matches the schema\", function () {",
+									"    pm.response.to.have.jsonSchema({\"allOf\":[{\"$ref\":\"#/$defs/Unauthorized\"}],\"$defs\":{\"Unauthorized\":{\"type\":\"object\",\"required\":[\"title\"],\"properties\":{\"title\":{\"type\":\"string\"}}}}}, { unknownFormats: [] });",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Idempotency-Key",
+								"value": "idempotencyKey"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"name\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/authors",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"authors"
+							]
+						},
+						"description": "Add an author. A retried request with the same key creates nothing new."
+					},
+					"response": []
+				},
+				{
+					"id": "ba8d26f4-903e-8410-88a1-bc2e13a0eef7",
+					"name": "delete: unauthorized",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 401\", function () {",
+									"    pm.response.to.have.status(401);",
+									"});",
+									"pm.test(\"Content-Type header is application/json\", function () {",
+									"    pm.expect(String(pm.response.headers.get(\"Content-Type\")).toLowerCase()).to.include(\"application/json\");",
+									"});",
+									"pm.test(\"Response matches the schema\", function () {",
+									"    pm.response.to.have.jsonSchema({\"allOf\":[{\"$ref\":\"#/$defs/Unauthorized\"}],\"$defs\":{\"Unauthorized\":{\"type\":\"object\",\"required\":[\"title\"],\"properties\":{\"title\":{\"type\":\"string\"}}}}}, { unknownFormats: [] });",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
 							}
 						],
 						"url": {

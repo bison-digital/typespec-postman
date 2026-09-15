@@ -25,7 +25,7 @@ The collection is generated, committed, and regenerated in CI, so it cannot drif
 Install as a devDependency beside the TypeSpec compiler. Nothing the emitter writes imports it.
 
 ```bash
-pnpm add -D typespec-postman @typespec/compiler @typespec/http
+pnpm add -D typespec-postman @typespec/compiler @typespec/http @typespec/openapi3
 ```
 
 `@typespec/versioning` is an optional peer, needed only by a versioned spec.
@@ -43,8 +43,11 @@ pnpm add -D typespec-postman @typespec/compiler @typespec/http
   values.
 - **Request bodies** from `@opExample`, then `@example`, then generated from the model: every property
   required at the request's visibility, with formats, lengths and bounds satisfied.
-- **Assertions**: the status code, that a created resource returned its id, that a list is an array,
+- **Assertions**: the status code; the response's media type, required headers, empty body or JSON
+  Schema, as the spec declares them; that a created resource returned its id, that a list is an array,
   that a fetched resource is the one requested, and that an updated field holds the value sent.
+- **Error cases** the spec declares: an unknown id answered 404, a body missing a required property
+  answered 400, and a request without credentials answered 401, each with its declared error body.
 
 The file is Postman Collection Format v2.1, byte-identical for identical input.
 

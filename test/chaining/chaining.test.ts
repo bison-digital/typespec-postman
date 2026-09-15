@@ -42,10 +42,9 @@ describe("a created resource", () => {
 	});
 
 	it("sets it from the created body's key after asserting the key came back", () => {
-		expect(scriptOf(requestNamed(collection, "create", "Teams"))).toEqual([
-			'pm.test("Status code is 201", function () {',
-			"    pm.response.to.have.status(201);",
-			"});",
+		const script = scriptOf(requestNamed(collection, "create", "Teams"));
+		// The response checks come first; the key follows them.
+		expect(script.slice(script.indexOf('pm.test("Response has an id", function () {'))).toEqual([
 			'pm.test("Response has an id", function () {',
 			'    pm.expect(pm.response.json()["id"]).to.be.a("string");',
 			"});",

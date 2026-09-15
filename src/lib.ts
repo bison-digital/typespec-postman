@@ -118,6 +118,12 @@ const diagnostics = {
 			default: paramMessage`Operation '${"operation"}' declares no 2xx response, so no status assertion is generated for it.`,
 		},
 	},
+	"schema-unavailable": {
+		severity: "warning",
+		messages: {
+			default: paramMessage`No response schema could be read for service '${"service"}' (${"reason"}), so its responses are not checked against a schema.`,
+		},
+	},
 	"shared-output-file": {
 		severity: "warning",
 		messages: {
@@ -146,6 +152,7 @@ type Diagnostics = {
 	"order-cycle": { readonly default: CallableMessage<["operations"]> };
 	"no-success-response": { readonly default: CallableMessage<["operation"]> };
 	"shared-output-file": { readonly default: CallableMessage<["services", "path"]> };
+	"schema-unavailable": { readonly default: CallableMessage<["service", "reason"]> };
 };
 
 export const $lib: TypeSpecLibrary<Diagnostics, EmitterOptions> = createTypeSpecLibrary({

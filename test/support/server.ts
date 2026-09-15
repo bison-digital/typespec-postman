@@ -75,6 +75,25 @@ export async function serveGenerated(
 		readonly unvalidated?: boolean;
 		/** The body an error arm carries, for a spec whose error models declare more than a title. */
 		readonly failureBody?: (status: number, title: string) => Record<string, unknown>;
+		/**
+		 * How an error response is served, for a spec whose error models declare their own media type
+		 * and headers (`application/problem+json`, `WWW-Authenticate`). Applied to the refusals the
+		 * hooks answer (401, 400) as well as to a handler's, so the whole error contract is the spec's.
+		 */
+		readonly failureMedia?: {
+			readonly contentType: string;
+			readonly headers: (status: number) => Record<string, string>;
+		};
+		/** Answer every response with this Content-Type instead of the one the arm serves. */
+		readonly contentType?: string;
+		/** Drop this header from every response. */
+		readonly dropHeader?: string;
+		/** Serve a JSON body where an arm declares none. */
+		readonly bodyWhereNone?: boolean;
+		/** Answer a request the validators refuse with a 200, as a server that validates nothing would. */
+		readonly acceptInvalid?: boolean;
+		/** Admit every caller, credentialed or not. */
+		readonly ignoreAuth?: boolean;
 	} = {},
 ): Promise<Served> {
 	const generated = (await import(join(serverDir, "app.gen.ts"))) as {
@@ -85,6 +104,20 @@ export async function serveGenerated(
 	// A thrown handler or a response its arm refuses surfaces in the run report, not as a bare 500.
 	app.onError((error, c) => c.json({ title: "Server error", detail: String(error) }, 500));
 	const mounted = basePath === "" ? app : app.basePath(basePath);
+	if (overrides.contentType !== undefined || overrides.dropHeader !== undefined) {
+		const { contentType, dropHeader } = overrides;
+		app.use(async (c, next) => {
+			await next();
+			const headers = new Headers(c.res.headers);
+			if (contentType !== undefined && headers.has("content-type"))
+				headers.set("content-type", contentType);
+			if (dropHeader !== undefined) headers.delete(dropHeader);
+			const replacement = new Response(c.res.body, { status: c.res.status, headers });
+			// Hono merges the previous response's headers into a replacement, so clear it first.
+			c.res = undefined as unknown as Response;
+			c.res = replacement;
+		});
+	}
 	if (overrides.requireHeader !== undefined) {
 		const header = overrides.requireHeader;
 		mounted.use(async (c, next) => {
@@ -93,24 +126,43 @@ export async function serveGenerated(
 			return undefined;
 		});
 	}
+	/** An error response as the spec serves it: its body, its media type and its headers. */
+	const refusal = (c: HonoContext, status: number, title: string): Response => {
+		const body = overrides.failureBody?.(status, title) ?? { title };
+		if (overrides.failureMedia === undefined) return c.json(body, status);
+		return new Response(JSON.stringify(body), {
+			status,
+			headers: {
+				"content-type": overrides.failureMedia.contentType,
+				...overrides.failureMedia.headers(status),
+			},
+		});
+	};
 	generated.registerRoutes(mounted, typeof handlers === "function" ? handlers : () => handlers, {
 		authorize:
 			(requirements: readonly Record<string, readonly string[]>[]) =>
 			async (c: HonoContext, next: () => Promise<void>) => {
 				const ok =
+					overrides.ignoreAuth === true ||
 					requirements.length === 0 ||
 					requirements.some((requirement) =>
 						Object.keys(requirement).every((name) => satisfied(schemes[name], c)),
 					);
-				if (!ok) return c.json({ title: "Unauthorized" }, 401);
+				if (!ok) return refusal(c, 401, "Unauthorized");
 				await next();
 				return undefined;
 			},
 		context: () => ({}),
-		noContext: (c: HonoContext) => c.json({ title: "Unauthorized" }, 401),
+		noContext: (c: HonoContext) => refusal(c, 401, "Unauthorized"),
 		notAcceptable: (c: HonoContext) => c.json({ title: "Not acceptable" }, 406),
 		invalid: (result: { success: boolean; error?: unknown }, c: HonoContext) =>
-			result.success ? undefined : c.json({ title: "Invalid", detail: String(result.error) }, 400),
+			result.success
+				? undefined
+				: overrides.acceptInvalid === true
+					? c.json({ title: "Accepted anyway" }, 200)
+					: overrides.failureBody === undefined && overrides.failureMedia === undefined
+						? c.json({ title: "Invalid", detail: String(result.error) }, 400)
+						: refusal(c, 400, "Invalid"),
 		respond: (c: HonoContext, arms: readonly Arm[], value: unknown) => {
 			const failure =
 				value !== null && typeof value === "object" && FAIL in value
@@ -147,7 +199,22 @@ export async function serveGenerated(
 			if (arm.when !== undefined) delete body[arm.when.property];
 			const status =
 				overrides.rewriteStatus?.from === arm.status ? overrides.rewriteStatus.to : arm.status;
-			if (arm.schema === undefined) return c.body(null, status, headers);
+			if (failure !== undefined && overrides.failureMedia !== undefined) {
+				const served = arm.schema === undefined ? body : arm.schema.parse(body);
+				return new Response(JSON.stringify(served), {
+					status,
+					headers: {
+						...headers,
+						"content-type": overrides.failureMedia.contentType,
+						...overrides.failureMedia.headers(status),
+					},
+				});
+			}
+			if (arm.schema === undefined) {
+				return overrides.bodyWhereNone === true
+					? c.json({ unexpected: true }, status, headers)
+					: c.body(null, status, headers);
+			}
 			const payload = Array.isArray(value) ? value : body;
 			// Spec-strict responses: a handler returning something the arm forbids is a 500, not a pass.
 			return c.json(
