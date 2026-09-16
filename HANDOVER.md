@@ -15,7 +15,8 @@ Everything here was measured. Read it before changing the emitter.
   exited 0.
 - **Postman's own `collection migrate` and `collection lint` run on the committed collection**
   (`test/reference/lint.test.ts`): 16 items scanned, 0 errors, 0 warnings, with a control Postman
-  refuses. The app's import dialogue is the one step no suite can take.
+  refuses. The app's import dialogue is the one step no suite can take, and **Zach accepted it
+  unverified for `0.1.0` on the CLI evidence** (2026-09-16); see `docs/releasing.md`.
 
 ## The things most easily lost
 

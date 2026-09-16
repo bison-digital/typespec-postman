@@ -42,6 +42,11 @@ worked example byte for byte.
 over the committed collection on every commit, so what the app reads is checked. What follows is the
 app's own import dialogue, which no suite can drive.
 
+**Zach accepted this unverified for `0.1.0` (2026-09-16)**, on the CLI evidence: Postman's own parser
+and linter read the file clean, and the CLI runs the collection green against a generated server. It
+is not a release blocker. If an import ever does warn, the collection is regenerated from the spec, so
+the fix is a spec or emitter change and a patch release, never a hand edit of the file.
+
 Import `example/postman_collection.json` into the Postman app, into a personal workspace, and confirm
 the import reports no warnings and the requests, folders, auth and variables appear as the file states.
 This is the one check no suite can make; record the app version and the outcome in the changelog entry.
