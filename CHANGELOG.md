@@ -8,7 +8,12 @@ version.
 
 ## [Unreleased]
 
-## [0.1.0] - unreleased
+## [0.1.0] - 2026-09-16
+
+The Postman app's own import dialogue is the one check no suite can drive, and it was accepted
+unverified for this release on the CLI evidence: Postman's `collection migrate` and `collection lint`
+read the committed collection clean on every commit, and the CLI runs it green against a generated
+server. `docs/releasing.md` records the acceptance.
 
 ### Added
 
