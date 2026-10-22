@@ -1,0 +1,285 @@
+import { getDoc, type Interface, type Namespace, type Program } from "@typespec/compiler";
+import {
+	getAuthentication,
+	type Authentication,
+	type HttpAuth,
+	type HttpOperation,
+	type HttpService,
+	resolveAuthentication,
+} from "@typespec/http";
+import { reportDiagnostic } from "./lib.js";
+import type { AuthSetting, PlanAuth, PlanParam, PlanVariable } from "./model.js";
+
+/**
+ * What one operation, interface or namespace requires, as Postman can carry it.
+ *
+ * **A Postman auth object holds one scheme**, while TypeSpec lets an operation require several at
+ * once (`@useAuth([A, B])`). The split: at most one scheme that writes `Authorization` goes in the
+ * auth object, and every API key travels as the header, query or cookie parameter its scheme names.
+ * When the requirement is only API keys, the first header or query key goes in the auth object so
+ * that folders and the collection can still share it.
+ */
+export interface Requirement {
+	readonly setting: AuthSetting;
+	/** Headers (including `Cookie`) and query parameters that carry the rest of the requirement. */
+	readonly headers: readonly PlanParam[];
+	readonly query: readonly PlanParam[];
+	/** Whether a caller presenting nothing is also admitted: an option that is only `NoAuth`. */
+	readonly anonymous: boolean;
+	/** Every credential variable this requirement sends, in the order it sends them. */
+	readonly variables: readonly string[];
+}
+
+const NO_AUTH: Requirement = {
+	setting: { kind: "none" },
+	headers: [],
+	query: [],
+	anonymous: true,
+	variables: [],
+};
+
+export interface AuthDerivation {
+	/** The requirement the service namespace itself declares, or `undefined` when it declares none. */
+	readonly service: Requirement | undefined;
+	/** The requirement a container declares on itself, or `undefined` when it inherits. */
+	declaredOn(container: Interface | Namespace): Requirement | undefined;
+	/** What an operation effectively requires. */
+	forOperation(operation: HttpOperation): Requirement;
+	/** Every credential variable the requirements above reference, in first-use order. */
+	readonly credentials: readonly PlanVariable[];
+}
+
+export function deriveAuth(program: Program, service: HttpService): AuthDerivation {
+	/**
+	 * Called first, and for a reason beyond its result: when two different schemes share a name, it
+	 * renames the later one IN PLACE (appending `_`), and those are the same objects
+	 * `getAuthentication` returns below. Reading ids before this call would name one credential for
+	 * two schemes.
+	 */
+	const resolved = resolveAuthentication(service);
+	const credentials = new Map<string, PlanVariable>();
+	const owners = new Map<string, string>();
+
+	const credential = (key: string, scheme: HttpAuth): string => {
+		const owner = owners.get(key);
+		if (owner !== undefined && owner !== scheme.id) {
+			reportDiagnostic(program, {
+				code: "variable-collision",
+				format: {
+					variable: key,
+					first: `the credential of scheme '${owner}'`,
+					second: `the credential of scheme '${scheme.id}'`,
+				},
+				target: scheme.model,
+			});
+			return key;
+		}
+		owners.set(key, scheme.id);
+		if (!credentials.has(key)) {
+			credentials.set(key, {
+				key,
+				value: "",
+				// An empty description is no description; fall back to the doc on the scheme's model.
+				description: nonEmpty(scheme.description) ?? nonEmpty(getDoc(program, scheme.model)),
+			});
+		}
+		return key;
+	};
+
+	const map = (
+		options: readonly (readonly HttpAuth[])[],
+		operationName: string,
+		report: boolean,
+	): Requirement => {
+		/**
+		 * **The first option that carries a credential.** An option of only `NoAuth` means anonymous
+		 * access is ALSO allowed; sending a credential the spec accepts is valid under both readings,
+		 * and it exercises the scheme a deployment check most needs to reach.
+		 */
+		const chosen =
+			options.find((option) => option.some((scheme) => scheme.type !== "noAuth")) ?? undefined;
+		if (chosen === undefined) return NO_AUTH;
+		const schemes = chosen.filter((scheme) => scheme.type !== "noAuth");
+		const authorization = schemes.filter((scheme) => scheme.type !== "apiKey");
+		const apiKeys = schemes.filter((scheme) => scheme.type === "apiKey");
+		if (report && authorization.length > 1) {
+			reportDiagnostic(program, {
+				code: "unrepresentable-auth",
+				format: {
+					operation: operationName,
+					schemes: authorization.map((scheme) => `'${scheme.id}'`).join(" and "),
+					dropped: authorization
+						.slice(1)
+						.map((scheme) => scheme.id)
+						.join("', '"),
+				},
+				target: authorization[1]?.model ?? service.namespace,
+			});
+		}
+		const headers: PlanParam[] = [];
+		const query: PlanParam[] = [];
+		const cookies: string[] = [];
+		let setting: AuthSetting | undefined;
+		/** Every variable this requirement sends, recorded where it is claimed rather than read back. */
+		const variables: string[] = [];
+		const uses = (key: string, scheme: HttpAuth): string => {
+			const name = credential(key, scheme);
+			if (!variables.includes(name)) variables.push(name);
+			return name;
+		};
+
+		const [primary] = authorization;
+		if (primary !== undefined) {
+			const variable = schemeVariable(primary.id);
+			switch (primary.type) {
+				case "http":
+					if (primary.scheme.toLowerCase() === "bearer") {
+						setting = {
+							kind: "scheme",
+							scheme: { type: "bearer", variable: uses(variable, primary) },
+						};
+					} else if (primary.scheme.toLowerCase() === "basic") {
+						setting = {
+							kind: "scheme",
+							scheme: {
+								type: "basic",
+								username: uses(`${variable}Username`, primary),
+								password: uses(`${variable}Password`, primary),
+							},
+						};
+					} else {
+						// A scheme Postman has no helper for is still a header the spec fully determines.
+						setting = { kind: "none" };
+						headers.push({
+							key: "Authorization",
+							value: `${primary.scheme} {{${uses(variable, primary)}}}`,
+							disabled: false,
+							description: undefined,
+						});
+					}
+					break;
+				case "oauth2":
+				case "openIdConnect":
+					setting = {
+						kind: "scheme",
+						scheme: { type: "oauth2", variable: uses(variable, primary) },
+					};
+					break;
+			}
+		}
+		for (const key of apiKeys) {
+			if (key.type !== "apiKey") continue;
+			const variable = uses(schemeVariable(key.id), key);
+			if (setting === undefined && key.in !== "cookie") {
+				const scheme: PlanAuth = { type: "apikey", name: key.name, in: key.in, variable };
+				setting = { kind: "scheme", scheme };
+				continue;
+			}
+			if (key.in === "header") {
+				headers.push({
+					key: key.name,
+					value: `{{${variable}}}`,
+					disabled: false,
+					description: undefined,
+				});
+			} else if (key.in === "query") {
+				query.push({
+					key: key.name,
+					value: `{{${variable}}}`,
+					disabled: false,
+					description: undefined,
+				});
+			} else {
+				cookies.push(`${key.name}={{${variable}}}`);
+			}
+		}
+		if (cookies.length > 0) {
+			headers.push({
+				key: "Cookie",
+				value: cookies.join("; "),
+				disabled: false,
+				description: undefined,
+			});
+		}
+		return {
+			setting: setting ?? { kind: "none" },
+			headers,
+			query,
+			anonymous: options.some((option) => option.every((scheme) => scheme.type === "noAuth")),
+			variables,
+		};
+	};
+
+	const fromAuthentication = (authentication: Authentication, name: string): Requirement =>
+		map(
+			authentication.options.map((option) => option.schemes),
+			name,
+			false,
+		);
+
+	const operationCache = new Map<HttpOperation, Requirement>();
+	const containerCache = new Map<Interface | Namespace, Requirement | undefined>();
+
+	const serviceRequirement =
+		resolved.defaultAuth.options.length === 0
+			? undefined
+			: map(
+					resolved.defaultAuth.options.map((option) => option.all.map((ref) => ref.auth)),
+					service.namespace.name,
+					false,
+				);
+
+	return {
+		service: serviceRequirement,
+		declaredOn(container) {
+			if (!containerCache.has(container)) {
+				const authentication = getAuthentication(program, container);
+				containerCache.set(
+					container,
+					authentication === undefined
+						? undefined
+						: fromAuthentication(authentication, container.name),
+				);
+			}
+			return containerCache.get(container);
+		},
+		forOperation(operation) {
+			let requirement = operationCache.get(operation);
+			if (requirement === undefined) {
+				const reference = resolved.operationsAuth.get(operation.operation) ?? resolved.defaultAuth;
+				requirement =
+					reference.options.length === 0
+						? NO_AUTH
+						: map(
+								reference.options.map((option) => option.all.map((ref) => ref.auth)),
+								operation.operation.name,
+								true,
+							);
+				operationCache.set(operation, requirement);
+			}
+			return requirement;
+		},
+		get credentials() {
+			return [...credentials.values()];
+		},
+	};
+}
+
+/**
+ * A scheme's credential variable: **the id `@typespec/openapi3` publishes the scheme under, first
+ * letter lowered.** `BearerAuth` is `bearerAuth`. The id is unique per service, because
+ * `resolveAuthentication` renames a second scheme sharing one (`ApiKeyAuth_`), so the variable is
+ * too; spelling it through word boundaries dropped that `_` and gave two schemes one credential.
+ */
+function schemeVariable(id: string): string {
+	return `${id.charAt(0).toLowerCase()}${id.slice(1)}`;
+}
+
+function nonEmpty(text: string | undefined): string | undefined {
+	return text === undefined || text.trim() === "" ? undefined : text;
+}
+
+/** Two auth settings send the same credentials. */
+export function sameSetting(a: AuthSetting | undefined, b: AuthSetting | undefined): boolean {
+	return JSON.stringify(a ?? { kind: "none" }) === JSON.stringify(b ?? { kind: "none" });
+}

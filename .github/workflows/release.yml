@@ -1,0 +1,100 @@
+name: Release
+
+# **Publishing is deliberate.** This runs only when a `v*` tag is pushed, or when somebody dispatches it
+# by hand on a tag. A merge to `main` publishes nothing.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  # **The gate, in a job that holds no credential.** It runs the Postman CLI, a third-party binary, so it
+  # runs on its own runner with read-only access; the job that publishes builds from its own checkout
+  # and never executes that binary.
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # The run suite executes collections with the Postman CLI, the runner a team uses; the suite
+      # fails, rather than skips, when the binary is missing. A third-party binary runs here with the
+      # repository checked out, so it is fetched by version and refused unless it matches the digest
+      # recorded below. Postman's installer script fetches whatever is latest and checks nothing.
+      - name: Install the Postman CLI
+        env:
+          POSTMAN_CLI_VERSION: 1.56.1
+          POSTMAN_CLI_SHA256: 1169c039d5102d2c2eadec563fd7f0f8fdbf2ad7fed4bf728d2658a3bbb50105
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/postman-cli.tar.gz" "https://dl-cli.pstmn.io/download/version/$POSTMAN_CLI_VERSION/linux64"
+          echo "$POSTMAN_CLI_SHA256  $RUNNER_TEMP/postman-cli.tar.gz" | sha256sum --check --strict
+          mkdir -p "$RUNNER_TEMP/postman-cli"
+          tar -xzf "$RUNNER_TEMP/postman-cli.tar.gz" -C "$RUNNER_TEMP/postman-cli"
+          mv "$RUNNER_TEMP/postman-cli/postman-cli" "$RUNNER_TEMP/postman-cli/postman"
+          echo "$RUNNER_TEMP/postman-cli" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/postman-cli/postman" --version
+
+      # **`--frozen-lockfile` exits 0 on a dangling link.** While the corpus judge needs an unpublished
+      # `typespec-hono`, `pnpm-workspace.yaml` redirects it to `link:../typespec-hono`. A release
+      # checkout has no sibling on disk: pnpm installs the dangling symlink, reports success, and the
+      # failure surfaces later as an import error that names the module but not the cause.
+      - name: Refuse to publish against a locally-linked dependency
+        run: |
+          if grep -qE '^\s+typespec-[a-z-]+:\s*"?(link|file):' pnpm-workspace.yaml; then
+            echo "::error::pnpm-workspace.yaml still overrides a first-party package to a local path."
+            echo "::error::Remove the 'overrides' block and re-run 'pnpm install' so the lockfile"
+            echo "::error::resolves it from the registry, then re-tag."
+            exit 1
+          fi
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+      # The full gate again, against the exact commit being published.
+      - run: pnpm test
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm format:check
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      # `write`: the last step creates the GitHub release.
+      contents: write
+      # npm exchanges this for the signed provenance attestation.
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+      - run: pnpm publish --access public --provenance --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # The notes ARE the changelog section, extracted rather than rewritten.
+      - name: Publish the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v v="## [$version]" 'index($0,v)==1{f=1;next} f&&/^## \[/{exit} f' CHANGELOG.md > /tmp/notes.md
+          test -s /tmp/notes.md
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
+            || gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file /tmp/notes.md

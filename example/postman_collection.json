@@ -1,0 +1,937 @@
+{
+	"info": {
+		"_postman_id": "7e275b1e-edb5-8113-a020-5fbafafd7aff",
+		"name": "Bookshop",
+		"description": "A small bookshop: authors, and the books each author has written.\n\nEvery construct here is one the emitter derives something from. A templated server with a default,\nbearer auth on the service with one operation open to anyone, an API key required alongside the\nbearer token, a required header, read-only ids, a paged list, a resource nested under another, a\ndelete at both levels, and an example on an update.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"id": "2723c7f6-e98a-8d19-8f71-7b4d67df2798",
+			"name": "health",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"type": "text/javascript",
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"pm.test(\"Content-Type header is application/json\", function () {",
+							"    pm.expect(String(pm.response.headers.get(\"Content-Type\")).toLowerCase()).to.include(\"application/json\");",
+							"});",
+							"pm.test(\"Response matches the schema\", function () {",
+							"    pm.response.to.have.jsonSchema({\"type\":\"object\",\"properties\":{\"status\":{\"type\":\"string\",\"enum\":[\"ok\"]}},\"required\":[\"status\"]}, { unknownFormats: [] });",
+							"});"
+						]
+					}
+				}
+			],
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json"
+					}
+				],
+				"url": {
+					"raw": "{{baseUrl}}/health",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"health"
+					]
+				},
+				"description": "Whether the service is up. Open to anyone."
+			},
+			"response": []
+		},
+		{
+			"id": "0d7cdb0d-9145-8762-94e0-4405a0f05b4b",
+			"name": "Authors",
+			"item": [
+				{
+					"id": "2c1b184f-8886-84e1-9844-800cd39296df",
+					"name": "create",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"pm.test(\"Content-Type header is application/json\", function () {",
+									"    pm.expect(String(pm.response.headers.get(\"Content-Type\")).toLowerCase()).to.include(\"application/json\");",
+									"});",
+									"pm.test(\"Response matches the schema\", function () {",
+									"    pm.response.to.have.jsonSchema({\"allOf\":[{\"$ref\":\"#/$defs/Author\"}],\"$defs\":{\"Author\":{\"type\":\"object\",\"required\":[\"id\",\"name\"],\"properties\":{\"id\":{\"type\":\"string\",\"format\":\"uuid\"},\"name\":{\"type\":\"string\",\"minLength\":1},\"bio\":{\"type\":\"string\"}}}}}, { unknownFormats: [] });",
+									"});",
+									"pm.test(\"Response has an id\", function () {",
+									"    pm.expect(pm.response.json()[\"id\"]).to.be.a(\"string\");",
+									"});",
+									"pm.collectionVariables.set(\"authorId\", pm.response.json()[\"id\"]);",
+									"pm.test(\"location identifies the created author\", function () {",
+									"    const collection = new URL(pm.variables.replaceIn(\"{{baseUrl}}/authors/\")).pathname;",
+									"    const location = pm.response.headers.get(\"location\");",
+									"    pm.expect(location, \"location header\").to.be.a(\"string\");",
+									"    const resolved = new URL(location, pm.request.url.toString()).pathname;",
+									"    pm.expect(resolved).to.eql(collection + pm.collectionVariables.get(\"authorId\"));",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Idempotency-Key",
+								"value": "idempotencyKey"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"name\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/authors",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"authors"
+							]
+						},
+						"description": "Add an author. A retried request with the same key creates nothing new."
+					},
+					"response": []
+				},
+				{
+					"id": "c059f825-a3ad-87f3-ba30-0302026b21c3",
+					"name": "list",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"pm.test(\"Content-Type header is application/json\", function () {",
+									"    pm.expect(String(pm.response.headers.get(\"Content-Type\")).toLowerCase()).to.include(\"application/json\");",
+									"});",
+									"pm.test(\"Response matches the schema\", function () {",
+									"    pm.response.to.have.jsonSchema({\"allOf\":[{\"$ref\":\"#/$defs/AuthorPage\"}],\"$defs\":{\"Author\":{\"type\":\"object\",\"required\":[\"id\",\"name\"],\"properties\":{\"id\":{\"type\":\"string\",\"format\":\"uuid\"},\"name\":{\"type\":\"string\",\"minLength\":1},\"bio\":{\"type\":\"string\"}}},\"AuthorPage\":{\"type\":\"object\",\"required\":[\"items\"],\"properties\":{\"items\":{\"type\":\"array\",\"items\":{\"$ref\":\"#/$defs/Author\"}},\"nextPageToken\":{\"type\":\"string\"}}}}}, { unknownFormats: [] });",
+									"});",
+									"pm.test(\"Response items is an array\", function () {",
+									"    pm.expect(pm.response.json()[\"items\"]).to.be.an(\"array\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/authors",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"authors"
+							],
+							"query": [
+								{
+									"key": "limit",
+									"value": "0",
+									"disabled": true
+								},
+								{
+									"key": "pageToken",
+									"value": "pageToken",
+									"disabled": true
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"id": "375f0e36-f2ac-807a-ab44-d85c4d878468",
+					"name": "read",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"pm.test(\"Content-Type header is application/json\", function () {",
+									"    pm.expect(String(pm.response.headers.get(\"Content-Type\")).toLowerCase()).to.include(\"application/json\");",
+									"});",
+									"pm.test(\"Response matches the schema\", function () {",
+									"    pm.response.to.have.jsonSchema({\"allOf\":[{\"$ref\":\"#/$defs/Author\"}],\"$defs\":{\"Author\":{\"type\":\"object\",\"required\":[\"id\",\"name\"],\"properties\":{\"id\":{\"type\":\"string\",\"format\":\"uuid\"},\"name\":{\"type\":\"string\",\"minLength\":1},\"bio\":{\"type\":\"string\"}}}}}, { unknownFormats: [] });",
+									"});",
+									"pm.test(\"Returns the requested author\", function () {",
+									"    pm.expect(String(pm.response.json()[\"id\"])).to.eql(pm.variables.get(\"authorId\"));",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/authors/{{authorId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"authors",
+								"{{authorId}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"id": "a5fdf58a-9e5b-81a7-9492-e6fd559dce17",
+					"name": "update",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"pm.test(\"Content-Type header is application/json\", function () {",
+									"    pm.expect(String(pm.response.headers.get(\"Content-Type\")).toLowerCase()).to.include(\"application/json\");",
+									"});",
+									"pm.test(\"Response matches the schema\", function () {",
+									"    pm.response.to.have.jsonSchema({\"allOf\":[{\"$ref\":\"#/$defs/Author\"}],\"$defs\":{\"Author\":{\"type\":\"object\",\"required\":[\"id\",\"name\"],\"properties\":{\"id\":{\"type\":\"string\",\"format\":\"uuid\"},\"name\":{\"type\":\"string\",\"minLength\":1},\"bio\":{\"type\":\"string\"}}}}}, { unknownFormats: [] });",
+									"});",
+									"pm.test(\"bio was updated\", function () {",
+									"    pm.expect(pm.response.json()[\"bio\"]).to.eql(\"Writes about bridges.\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/merge-patch+json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"bio\": \"Writes about bridges.\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/authors/{{authorId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"authors",
+								"{{authorId}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"id": "cea1776c-cb1e-8d37-95ff-0bceebbb9997",
+					"name": "Books",
+					"item": [
+						{
+							"id": "bdd91b42-3533-8152-88e3-1582b86d515d",
+							"name": "create",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"pm.test(\"Status code is 201\", function () {",
+											"    pm.response.to.have.status(201);",
+											"});",
+											"pm.test(\"Content-Type header is application/json\", function () {",
+											"    pm.expect(String(pm.response.headers.get(\"Content-Type\")).toLowerCase()).to.include(\"application/json\");",
+											"});",
+											"pm.test(\"Response matches the schema\", function () {",
+											"    pm.response.to.have.jsonSchema({\"allOf\":[{\"$ref\":\"#/$defs/Book\"}],\"$defs\":{\"Book\":{\"type\":\"object\",\"required\":[\"id\",\"title\",\"pages\"],\"properties\":{\"id\":{\"type\":\"string\",\"format\":\"uuid\"},\"title\":{\"type\":\"string\",\"minLength\":1},\"pages\":{\"type\":\"integer\",\"format\":\"int32\",\"minimum\":1}}}}}, { unknownFormats: [\"int32\"] });",
+											"});",
+											"pm.test(\"Response has an id\", function () {",
+											"    pm.expect(pm.response.json()[\"id\"]).to.be.a(\"string\");",
+											"});",
+											"pm.collectionVariables.set(\"bookId\", pm.response.json()[\"id\"]);",
+											"pm.test(\"location identifies the created book\", function () {",
+											"    const collection = new URL(pm.variables.replaceIn(\"{{baseUrl}}/authors/{{authorId}}/books/\")).pathname;",
+											"    const location = pm.response.headers.get(\"location\");",
+											"    pm.expect(location, \"location header\").to.be.a(\"string\");",
+											"    const resolved = new URL(location, pm.request.url.toString()).pathname;",
+											"    pm.expect(resolved).to.eql(collection + pm.collectionVariables.get(\"bookId\"));",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									},
+									{
+										"key": "Accept",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"title\": \"title\",\n  \"pages\": 1\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/authors/{{authorId}}/books",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"authors",
+										"{{authorId}}",
+										"books"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"id": "e411c19b-5841-88a1-88e8-744f181a3ffb",
+							"name": "list",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"pm.test(\"Status code is 200\", function () {",
+											"    pm.response.to.have.status(200);",
+											"});",
+											"pm.test(\"Content-Type header is application/json\", function () {",
+											"    pm.expect(String(pm.response.headers.get(\"Content-Type\")).toLowerCase()).to.include(\"application/json\");",
+											"});",
+											"pm.test(\"Response matches the schema\", function () {",
+											"    pm.response.to.have.jsonSchema({\"type\":\"array\",\"items\":{\"$ref\":\"#/$defs/Book\"},\"$defs\":{\"Book\":{\"type\":\"object\",\"required\":[\"id\",\"title\",\"pages\"],\"properties\":{\"id\":{\"type\":\"string\",\"format\":\"uuid\"},\"title\":{\"type\":\"string\",\"minLength\":1},\"pages\":{\"type\":\"integer\",\"format\":\"int32\",\"minimum\":1}}}}}, { unknownFormats: [\"int32\"] });",
+											"});",
+											"pm.test(\"Response is an array\", function () {",
+											"    pm.expect(pm.response.json()).to.be.an(\"array\");",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Accept",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/authors/{{authorId}}/books",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"authors",
+										"{{authorId}}",
+										"books"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"id": "23ab7ffe-5410-8802-bc23-abf69d74d012",
+							"name": "read",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"pm.test(\"Status code is 200\", function () {",
+											"    pm.response.to.have.status(200);",
+											"});",
+											"pm.test(\"Content-Type header is application/json\", function () {",
+											"    pm.expect(String(pm.response.headers.get(\"Content-Type\")).toLowerCase()).to.include(\"application/json\");",
+											"});",
+											"pm.test(\"Response matches the schema\", function () {",
+											"    pm.response.to.have.jsonSchema({\"allOf\":[{\"$ref\":\"#/$defs/Book\"}],\"$defs\":{\"Book\":{\"type\":\"object\",\"required\":[\"id\",\"title\",\"pages\"],\"properties\":{\"id\":{\"type\":\"string\",\"format\":\"uuid\"},\"title\":{\"type\":\"string\",\"minLength\":1},\"pages\":{\"type\":\"integer\",\"format\":\"int32\",\"minimum\":1}}}}}, { unknownFormats: [\"int32\"] });",
+											"});",
+											"pm.test(\"Returns the requested book\", function () {",
+											"    pm.expect(String(pm.response.json()[\"id\"])).to.eql(pm.variables.get(\"bookId\"));",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Accept",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/authors/{{authorId}}/books/{{bookId}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"authors",
+										"{{authorId}}",
+										"books",
+										"{{bookId}}"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"id": "03726df7-23d6-8993-aa74-dc22a421688c",
+							"name": "delete",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"pm.test(\"Status code is 204\", function () {",
+											"    pm.response.to.have.status(204);",
+											"});",
+											"pm.test(\"Response has no body\", function () {",
+											"    pm.response.to.not.be.withBody;",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "DELETE",
+								"header": [
+									{
+										"key": "Accept",
+										"value": "application/json"
+									},
+									{
+										"key": "X-Shop-Key",
+										"value": "{{shopKey}}"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/authors/{{authorId}}/books/{{bookId}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"authors",
+										"{{authorId}}",
+										"books",
+										"{{bookId}}"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"id": "a253e1d8-db77-8e8d-a058-c3d4703ee486",
+					"name": "delete",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 204\", function () {",
+									"    pm.response.to.have.status(204);",
+									"});",
+									"pm.test(\"Response has no body\", function () {",
+									"    pm.response.to.not.be.withBody;",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							},
+							{
+								"key": "X-Shop-Key",
+								"value": "{{shopKey}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/authors/{{authorId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"authors",
+								"{{authorId}}"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"id": "3d45a79a-486f-8896-ae30-77b69449093d",
+			"name": "Error cases",
+			"description": "Requests the spec says must fail, each asserting the failure it declares. Generated after every success case.",
+			"item": [
+				{
+					"id": "cd7781e5-5296-8d1a-80a3-be87d55d1af6",
+					"name": "read: not found",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 404\", function () {",
+									"    pm.response.to.have.status(404);",
+									"});",
+									"pm.test(\"Content-Type header is application/json\", function () {",
+									"    pm.expect(String(pm.response.headers.get(\"Content-Type\")).toLowerCase()).to.include(\"application/json\");",
+									"});",
+									"pm.test(\"Response matches the schema\", function () {",
+									"    pm.response.to.have.jsonSchema({\"allOf\":[{\"$ref\":\"#/$defs/NotFound\"}],\"$defs\":{\"NotFound\":{\"type\":\"object\",\"required\":[\"title\"],\"properties\":{\"title\":{\"type\":\"string\"}}}}}, { unknownFormats: [] });",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/authors/00000000-0000-0000-0000-000000000000",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"authors",
+								"00000000-0000-0000-0000-000000000000"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"id": "6136bf2c-a929-8c6e-a8d7-8db9fbd77736",
+					"name": "read: not found",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 404\", function () {",
+									"    pm.response.to.have.status(404);",
+									"});",
+									"pm.test(\"Content-Type header is application/json\", function () {",
+									"    pm.expect(String(pm.response.headers.get(\"Content-Type\")).toLowerCase()).to.include(\"application/json\");",
+									"});",
+									"pm.test(\"Response matches the schema\", function () {",
+									"    pm.response.to.have.jsonSchema({\"allOf\":[{\"$ref\":\"#/$defs/NotFound\"}],\"$defs\":{\"NotFound\":{\"type\":\"object\",\"required\":[\"title\"],\"properties\":{\"title\":{\"type\":\"string\"}}}}}, { unknownFormats: [] });",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/authors/{{authorId}}/books/00000000-0000-0000-0000-000000000000",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"authors",
+								"{{authorId}}",
+								"books",
+								"00000000-0000-0000-0000-000000000000"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"id": "f9ae6535-1672-89e2-8e08-56243cc90db6",
+					"name": "create: invalid body",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 400\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"pm.test(\"Content-Type header is application/json\", function () {",
+									"    pm.expect(String(pm.response.headers.get(\"Content-Type\")).toLowerCase()).to.include(\"application/json\");",
+									"});",
+									"pm.test(\"Response matches the schema\", function () {",
+									"    pm.response.to.have.jsonSchema({\"allOf\":[{\"$ref\":\"#/$defs/Invalid\"}],\"$defs\":{\"Invalid\":{\"type\":\"object\",\"required\":[\"title\"],\"properties\":{\"title\":{\"type\":\"string\"}}}}}, { unknownFormats: [] });",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Idempotency-Key",
+								"value": "idempotencyKey"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/authors",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"authors"
+							]
+						},
+						"description": "Add an author. A retried request with the same key creates nothing new."
+					},
+					"response": []
+				},
+				{
+					"id": "f948d896-450c-866c-a51d-ad03dd1de616",
+					"name": "create: invalid body",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 400\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"pm.test(\"Content-Type header is application/json\", function () {",
+									"    pm.expect(String(pm.response.headers.get(\"Content-Type\")).toLowerCase()).to.include(\"application/json\");",
+									"});",
+									"pm.test(\"Response matches the schema\", function () {",
+									"    pm.response.to.have.jsonSchema({\"allOf\":[{\"$ref\":\"#/$defs/Invalid\"}],\"$defs\":{\"Invalid\":{\"type\":\"object\",\"required\":[\"title\"],\"properties\":{\"title\":{\"type\":\"string\"}}}}}, { unknownFormats: [] });",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"pages\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/authors/{{authorId}}/books",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"authors",
+								"{{authorId}}",
+								"books"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"id": "65b3079f-28b7-8fb8-a2a0-c0512bf13cd6",
+					"name": "create: unauthorized",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 401\", function () {",
+									"    pm.response.to.have.status(401);",
+									"});",
+									"pm.test(\"Content-Type header is application/json\", function () {",
+									"    pm.expect(String(pm.response.headers.get(\"Content-Type\")).toLowerCase()).to.include(\"application/json\");",
+									"});",
+									"pm.test(\"Response matches the schema\", function () {",
+									"    pm.response.to.have.jsonSchema({\"allOf\":[{\"$ref\":\"#/$defs/Unauthorized\"}],\"$defs\":{\"Unauthorized\":{\"type\":\"object\",\"required\":[\"title\"],\"properties\":{\"title\":{\"type\":\"string\"}}}}}, { unknownFormats: [] });",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Idempotency-Key",
+								"value": "idempotencyKey"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"name\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/authors",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"authors"
+							]
+						},
+						"description": "Add an author. A retried request with the same key creates nothing new."
+					},
+					"response": []
+				},
+				{
+					"id": "ba8d26f4-903e-8410-88a1-bc2e13a0eef7",
+					"name": "delete: unauthorized",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 401\", function () {",
+									"    pm.response.to.have.status(401);",
+									"});",
+									"pm.test(\"Content-Type header is application/json\", function () {",
+									"    pm.expect(String(pm.response.headers.get(\"Content-Type\")).toLowerCase()).to.include(\"application/json\");",
+									"});",
+									"pm.test(\"Response matches the schema\", function () {",
+									"    pm.response.to.have.jsonSchema({\"allOf\":[{\"$ref\":\"#/$defs/Unauthorized\"}],\"$defs\":{\"Unauthorized\":{\"type\":\"object\",\"required\":[\"title\"],\"properties\":{\"title\":{\"type\":\"string\"}}}}}, { unknownFormats: [] });",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/authors/{{authorId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"authors",
+								"{{authorId}}"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{bearerAuth}}",
+				"type": "string"
+			}
+		]
+	},
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"const missing = [\"bearerAuth\",\"shopKey\"].filter((name) => !pm.variables.get(name));",
+					"if (missing.length !== 0) {",
+					"    pm.execution.setNextRequest(null);",
+					"    throw new Error(\"This collection authenticates with \" + missing.join(\" and \") +",
+					"        \", which this run has not set (--env-var bearerAuth=...)\");",
+					"}"
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "{{endpoint}}/v1",
+			"type": "string",
+			"description": "The bookshop API"
+		},
+		{
+			"key": "endpoint",
+			"value": "http://localhost:8080",
+			"type": "string"
+		},
+		{
+			"key": "bearerAuth",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "shopKey",
+			"value": "",
+			"type": "string",
+			"description": "Required alongside the bearer token by operations that destroy data."
+		},
+		{
+			"key": "authorId",
+			"value": "",
+			"type": "string",
+			"description": "The id of the author most recently created in this run."
+		},
+		{
+			"key": "bookId",
+			"value": "",
+			"type": "string",
+			"description": "The id of the book most recently created in this run."
+		}
+	]
+}

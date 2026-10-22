@@ -1,0 +1,63 @@
+import "@typespec/http";
+
+using Http;
+
+@service(#{ title: "Assertions" })
+namespace AssertionsFixture;
+
+model Created<T> {
+  @statusCode statusCode: 201;
+  @header location: string;
+  @body body: T;
+}
+
+model Account {
+  @visibility(Lifecycle.Read) @format("uuid") id: string;
+  name: string;
+  tier: "free" | "paid";
+  seats: int32;
+  renewsAt?: utcDateTime;
+}
+
+model AccountPatch { name?: string; tier?: "free" | "paid"; seats?: int32; renewsAt?: utcDateTime; }
+
+@route("/accounts")
+interface Accounts {
+  @post create(@body account: Account): Created<Account>;
+  @get list(): Account[];
+
+  /** A required response header that is not a location, so the presence rule is still graded. */
+  @route("/{accountId}") @get read(@path @format("uuid") accountId: string): {
+    @header etag: string;
+    @body body: Account;
+  };
+
+  @opExample(#{ parameters: #{ accountId: "00000000-0000-0000-0000-000000000000", patch: #{ name: "Renamed", seats: 3, renewsAt: utcDateTime.fromISO("2030-01-01T00:00:00Z") } } })
+  @route("/{accountId}") @patch(#{ implicitOptionality: false }) update(@path @format("uuid") accountId: string, @body patch: AccountPatch): Account;
+
+  @route("/{accountId}") @put replace(@path @format("uuid") accountId: string, @body account: Account): Account;
+}
+
+@route("/either") @post op either(): { @statusCode statusCode: 200 | 202 };
+@route("/ranged") @get op ranged(): { @minValue(200) @maxValue(299) @statusCode statusCode: int32 };
+@route("/failing") @get op failing(): { @statusCode statusCode: 400 };
+model Seat { @visibility(Lifecycle.Read) @format("uuid") id: string; holder?: string; }
+model SeatPatch { holder?: string; }
+
+@route("/seats")
+interface Seats {
+  @post create(@body seat: Seat): Created<Seat>;
+  @route("/{seatId}") @patch(#{ implicitOptionality: false }) update(@path @format("uuid") seatId: string, @body patch: SeatPatch): Seat;
+}
+
+/** A property written but never read back, so the response body is the model at Read visibility. */
+model Member { @visibility(Lifecycle.Read) @format("uuid") id: string; name: string; @visibility(Lifecycle.Create, Lifecycle.Update) pin: string; }
+model MemberPatch { name?: string; @visibility(Lifecycle.Create, Lifecycle.Update) pin?: string; }
+
+@route("/members")
+interface Members {
+  @post create(@body member: Member): Created<Member>;
+  @route("/{memberId}") @get read(@path @format("uuid") memberId: string): Member;
+  @opExample(#{ parameters: #{ memberId: "00000000-0000-0000-0000-000000000000", patch: #{ name: "Renamed", pin: "1234" } } })
+  @route("/{memberId}") @patch(#{ implicitOptionality: false }) update(@path @format("uuid") memberId: string, @body patch: MemberPatch): Member;
+}

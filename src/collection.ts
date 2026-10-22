@@ -1,0 +1,198 @@
+import {
+	getDoc,
+	getNamespaceFullName,
+	getService,
+	type Interface,
+	type Namespace,
+	type Program,
+} from "@typespec/compiler";
+import {
+	createMetadataInfo,
+	type HttpOperation,
+	type HttpService,
+	Visibility,
+} from "@typespec/http";
+import { type AuthDerivation, deriveAuth, type Requirement, sameSetting } from "./auth.js";
+import { deriveAssertions } from "./assertions.js";
+import { reportDiagnostic } from "./lib.js";
+import type { AuthSetting, CollectionPlan, PlanGuard, PlanNode, PlanVariable } from "./model.js";
+import { inDeclarationOrder, type OrderedNode, orderRequests } from "./order.js";
+import { deriveErrorCases } from "./errors.js";
+import { deriveRequest } from "./requests.js";
+import { deriveChains, type Resource } from "./resources.js";
+import type { ResponseSchemas } from "./schemas.js";
+import { deriveServerVariables } from "./servers.js";
+import { publishesOpenApi30Only } from "./openapi-versions.js";
+import { isReadOnlyProperty, parameterValue, type ValueContext } from "./values.js";
+
+export interface CollectionOptions {
+	readonly collectionAuth: boolean;
+}
+
+/**
+ * One service as a collection plan: every derivation, in the order each depends on the last.
+ */
+export function deriveCollection(
+	program: Program,
+	service: HttpService,
+	options: CollectionOptions,
+	schemas: ResponseSchemas,
+): CollectionPlan {
+	const namespace = service.namespace;
+	const fullName = getNamespaceFullName(namespace);
+	/**
+	 * **Created here, per compile, and never cached at module level.** `createMetadataInfo` closes
+	 * over one program's types; a module-level instance would carry one compile's answers into the
+	 * next.
+	 */
+	const context: ValueContext = {
+		program,
+		metadata: createMetadataInfo(program, { canonicalVisibility: Visibility.Read }),
+		shared: createMetadataInfo(program, {
+			canonicalVisibility: Visibility.Read,
+			canShareProperty: (property) => isReadOnlyProperty(program, property),
+		}),
+		readOnlyRequired: !publishesOpenApi30Only(program),
+	};
+	const operations = inDeclarationOrder(program, service.operations);
+	const auth = deriveAuth(program, service);
+	const chains = deriveChains(program, context.metadata, operations);
+	const tree = orderRequests(program, namespace, operations, chains);
+
+	/**
+	 * The value a request carries for a resource nothing creates: **the one the emitter would have
+	 * sent anyway**, so the URL is the shape the spec describes and reaches the route it names. An
+	 * empty variable would send `/archives/`, which is a different route and can answer a list.
+	 */
+	const supplied = (resource: Resource) => String(parameterValue(context, resource.key));
+	const guardFor = (operation: HttpOperation): PlanGuard | undefined => {
+		const needs = chains
+			.consumes(operation)
+			.filter((resource) => resource.creators.length === 0)
+			.map((resource) => ({ variable: resource.variable, value: supplied(resource) }));
+		return needs.length === 0 ? undefined : { needs };
+	};
+
+	const collectionAuth = options.collectionAuth ? auth.service?.setting : undefined;
+
+	const containerRequirement = (container: Interface | Namespace): Requirement | undefined => {
+		for (
+			let current: Interface | Namespace | undefined = container;
+			current !== undefined;
+			current = current.namespace
+		) {
+			if (current === namespace) return auth.service;
+			const declared = auth.declaredOn(current);
+			if (declared !== undefined) return declared;
+		}
+		return auth.service;
+	};
+
+	const build = (node: OrderedNode, inherited: AuthSetting | undefined): PlanNode => {
+		if (node.kind === "folder") {
+			const own = containerRequirement(node.container)?.setting;
+			const differs = !sameSetting(own, inherited);
+			const setting = differs ? (own ?? { kind: "none" }) : undefined;
+			return {
+				kind: "folder",
+				identity: `${fullName}/${node.name}`,
+				name: node.name,
+				description: getDoc(program, node.container),
+				auth: setting,
+				items: node.children.map((child) => build(child, differs ? own : inherited)),
+			};
+		}
+		const operation = node.operation;
+		const requirement = auth.forOperation(operation);
+		const request = deriveRequest(context, operation, chains, requirement);
+		return {
+			kind: "request",
+			identity: `${fullName}/${operation.verb} ${operation.uriTemplate}/${operation.operation.name}`,
+			name: request.name,
+			description: request.description,
+			method: request.method,
+			url: request.url,
+			headers: request.headers,
+			body: request.body,
+			auth: sameSetting(requirement.setting, inherited) ? undefined : requirement.setting,
+			assertions: deriveAssertions(
+				context,
+				operation,
+				chains.roles(operation),
+				request.sent,
+				schemas,
+				request.url.path,
+			),
+			guard: guardFor(operation),
+		};
+	};
+
+	const errorCases = deriveErrorCases({
+		context,
+		operations,
+		chains,
+		auth,
+		schemas,
+		fullName,
+		collectionAuth,
+	});
+	const items = [
+		...tree.map((node) => build(node, collectionAuth)),
+		...(errorCases === undefined ? [] : [errorCases]),
+	];
+
+	return {
+		name: getService(program, namespace)?.title ?? namespace.name,
+		description: getDoc(program, namespace),
+		identity: fullName,
+		auth: collectionAuth,
+		variables: variables(program, namespace, auth, chains.resources, supplied),
+		credentials: auth.credentials.map((variable) => variable.key),
+		items,
+	};
+}
+
+/**
+ * Server variables, then credentials, then chained ids. **A later claim on a name already taken is
+ * reported, not renamed**: renaming would invent a variable no reader of the spec could predict.
+ */
+function variables(
+	program: Program,
+	namespace: Namespace,
+	auth: AuthDerivation,
+	resources: ReturnType<typeof deriveChains>["resources"],
+	supplied: (resource: Resource) => string,
+): PlanVariable[] {
+	const claimed = new Map<string, string>();
+	const out: PlanVariable[] = [];
+	const claim = (variable: PlanVariable, owner: string) => {
+		const first = claimed.get(variable.key);
+		if (first !== undefined) {
+			reportDiagnostic(program, {
+				code: "variable-collision",
+				format: { variable: variable.key, first, second: owner },
+				target: namespace,
+			});
+			return;
+		}
+		claimed.set(variable.key, owner);
+		out.push(variable);
+	};
+	for (const variable of deriveServerVariables(program, namespace))
+		claim(variable, `server variable '${variable.key}'`);
+	for (const variable of auth.credentials) claim(variable, `the credential '${variable.key}'`);
+	for (const resource of resources) {
+		const created = resource.creators.length !== 0;
+		claim(
+			{
+				key: resource.variable,
+				value: created ? "" : supplied(resource),
+				description: created
+					? `The ${resource.keyWire} of the ${resource.spoken} most recently created in this run.`
+					: `The ${resource.keyWire} of the ${resource.spoken}. No operation creates one, so supply it to run the requests that read it.`,
+			},
+			`the ${resource.spoken} resource id`,
+		);
+	}
+	return out;
+}
