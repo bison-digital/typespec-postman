@@ -63,7 +63,7 @@ describe("the package declares what it needs to run outside this checkout", () =
 	 * because only a spec with a GraphQL surface has any.
 	 */
 	it("names typespec-http-graphql as an optional peer it never imports", () => {
-		expect(manifest.peerDependencies?.["typespec-http-graphql"]).toBe("^0.3.0");
+		expect(manifest.peerDependencies?.["typespec-http-graphql"]).toBe("^0.3.1");
 		expect(manifest.peerDependenciesMeta?.["typespec-http-graphql"]?.optional).toBe(true);
 		expect(imported.has("typespec-http-graphql")).toBe(false);
 	});

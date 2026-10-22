@@ -1,6 +1,6 @@
 import { type EmitContext, emitFile, NoTarget, resolvePath } from "@typespec/compiler";
 import { deriveCollection } from "./collection.js";
-import { graphqlRequestsIn, graphqlUrlOf } from "./graphql.js";
+import { graphqlRequestsIn, graphqlUrls } from "./graphql.js";
 import { type EmitterOptions, reportDiagnostic } from "./lib.js";
 import { renderCollection } from "./render.js";
 import { loadResponseSchemas } from "./schemas.js";
@@ -20,6 +20,7 @@ export async function $onEmit(context: EmitContext<EmitterOptions>): Promise<voi
 	const selected = await selectServices(program, context.options);
 	// Read once: the warnings it raises are about the compile, not about any one service.
 	const graphql = graphqlRequestsIn(program);
+	const graphqlUrlOf = graphqlUrls(program, context.options);
 	const byPath = new Map<string, string[]>();
 	for (const entry of selected)
 		byPath.set(entry.outputFile, [...(byPath.get(entry.outputFile) ?? []), entry.fullName]);
@@ -39,7 +40,7 @@ export async function $onEmit(context: EmitContext<EmitterOptions>): Promise<voi
 					: {
 							graphql: {
 								requests,
-								url: graphqlUrlOf(program, context.options, entry.fullName),
+								url: graphqlUrlOf(entry.fullName),
 							},
 						}),
 			},

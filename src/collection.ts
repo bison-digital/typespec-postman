@@ -26,7 +26,13 @@ import type {
 } from "./model.js";
 import { inDeclarationOrder, type OrderedNode, orderRequests } from "./order.js";
 import { deriveErrorCases } from "./errors.js";
-import { type GraphQLRequest, type GraphQLUrl, operationKey, variablesText } from "./graphql.js";
+import {
+	type GraphQLRequest,
+	type GraphQLUrl,
+	operationKey,
+	variablesOf,
+	variablesText,
+} from "./graphql.js";
 import { type DerivedRequest, deriveRequest } from "./requests.js";
 import { deriveChains, type Resource } from "./resources.js";
 import type { ResponseSchemas } from "./schemas.js";
@@ -170,10 +176,14 @@ export function deriveCollection(
 	/**
 	 * **The GraphQL requests, in a folder after the REST requests**: first a copy of each create the
 	 * GraphQL requests' operations need, setting the ids they read, then one request per root field,
-	 * in the order the REST request for its operation runs, so a delete still runs last. Without the
-	 * copies every read would follow the REST deletes, and answer `null` for a resource already gone.
+	 * in an order of their own: each after what creates what it uses, a delete after every other use
+	 * of what it deletes, ties in declaration order. The REST folders run as wholes and may have to
+	 * give an edge up; this folder is flat and need not. Without the copies every read would follow the
+	 * REST deletes, and answer `null` for a resource already gone.
 	 */
 	const graphqlFolder = (): PlanFolder | undefined => {
+		// Apart from every folder of the spec: no name a TypeSpec declaration can take holds a NUL.
+		const graphqlIdentity = `${fullName}\u0000graphql`;
 		const surface = options.graphql;
 		if (surface === undefined || surface.requests.length === 0) return undefined;
 		const ordered: { readonly operation: HttpOperation; readonly folder: string }[] = [];
@@ -184,7 +194,6 @@ export function deriveCollection(
 			}
 		};
 		walk(tree, namespace.name);
-		const position = new Map(ordered.map((entry, index) => [entry.operation, index]));
 
 		const byKey = new Map<string, HttpOperation[]>();
 		for (const operation of operations) {
@@ -222,23 +231,36 @@ export function deriveCollection(
 				restRequest(
 					entry.operation,
 					collectionAuth,
-					`${fullName}/graphql/${restIdentity(entry.operation)}`,
+					`${graphqlIdentity}/${restIdentity(entry.operation)}`,
 					(request) => `${request.name} (${entry.folder})`,
 				),
 			);
+		const runs = new Map(
+			orderRequests(
+				program,
+				namespace,
+				matched.map(({ operation }) => operation),
+				chains,
+				{ flat: true },
+			).flatMap((node, index) =>
+				node.kind === "request" ? [[node.operation, index] as const] : [],
+			),
+		);
 		const requests = matched
-			.toSorted((a, b) => (position.get(a.operation) ?? 0) - (position.get(b.operation) ?? 0))
+			.toSorted((a, b) => (runs.get(a.operation) ?? 0) - (runs.get(b.operation) ?? 0))
 			.map(({ request, operation }): PlanRequest => {
 				const requirement = auth.forOperation(operation);
 				const rest = requestOf(operation, requirement);
-				const { value } = request.variables({
-					parameters: rest.values.parameters,
-					...(rest.sent === undefined ? {} : { body: rest.sent.value }),
-				});
+				const value = variablesOf(
+					request,
+					rest.values.parameters,
+					rest.values.omitted,
+					rest.sent === undefined ? {} : { body: rest.sent.value },
+				);
 				const cookie = requirement.headers.find((header) => header.key === "Cookie");
 				return {
 					kind: "request",
-					identity: `${fullName}/graphql/${request.kind} ${request.field}`,
+					identity: `${graphqlIdentity}/${request.kind} ${request.field}`,
 					name: `${request.kind} ${request.field}`,
 					description: request.description,
 					method: "POST",
@@ -274,7 +296,7 @@ export function deriveCollection(
 			});
 		return {
 			kind: "folder",
-			identity: `${fullName}/graphql`,
+			identity: graphqlIdentity,
 			name: "GraphQL",
 			description:
 				"The service's GraphQL surface: the creates its reads need, then a request for each root field.",

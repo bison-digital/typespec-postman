@@ -6,6 +6,30 @@ All notable changes to this package are documented here. The format follows
 generated collection counts as API: a change to what it contains for an unchanged spec is a minor
 version.
 
+## [0.7.0] - 2026-10-22
+
+A minor, by this file's own rule: a collection's GraphQL folder changes for an unchanged spec, its id
+among them. A spec without a GraphQL surface emits what 0.6.0 emits.
+
+### Fixed
+
+- **A GraphQL request sends every argument its field requires.** `@typespec/openapi3` marks optional,
+  on the operation itself, each parameter of a shared route that not every operation of the route
+  takes, and this emitter left such a parameter out of the REST request and so out of the GraphQL
+  one, whose field typespec-http-graphql had planned with it required. The GraphQL request now takes
+  the value the REST request leaves out.
+- **The GraphQL folder runs each request after what creates what it uses, and a delete after every
+  other use of what it deletes.** It took the REST order, which folders that run as wholes can force
+  to give such an edge up (`order-cycle`), and could run a read after the delete of what it read.
+- **The GraphQL folder's id is its own.** A folder for an interface named `graphql` had the same one.
+- **`graphql-url` keeps a trailing slash**, and a `graphql-url` naming no host is warned of once, not
+  once per service.
+
+### Changed
+
+- `typespec-http-graphql` `^0.3.1` as the optional peer: 0.3.1 writes a document the schema accepts
+  for every root field.
+
 ## [0.6.0] - 2026-10-22
 
 A minor, by this file's own rule: a spec with a GraphQL surface, compiled with typespec-http-graphql,

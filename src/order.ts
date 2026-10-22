@@ -49,11 +49,16 @@ interface Draft {
 	parent: Draft | undefined;
 }
 
+/**
+ * `flat` orders the operations as one level, in no folder, as a folder of copies does: no folder then
+ * makes an edge impossible, and any edge it gives up lies on a cycle the spec's own order reports.
+ */
 export function orderRequests(
 	program: Program,
 	serviceNamespace: Namespace,
 	operations: readonly HttpOperation[],
 	chains: Chains,
+	options: { readonly flat?: boolean } = {},
 ): OrderedNode[] {
 	const index = declarationOrder(program, operations);
 	const serviceName = getNamespaceFullName(serviceNamespace);
@@ -62,7 +67,7 @@ export function orderRequests(
 
 	for (const operation of operations) {
 		const container = operation.container;
-		if (container === serviceNamespace) {
+		if (options.flat === true || container === serviceNamespace) {
 			rootOperations.push(operation);
 			continue;
 		}
@@ -316,6 +321,7 @@ export function orderRequests(
 	};
 
 	const ordered = sortLevel(undefined, root);
+	if (options.flat === true) return ordered;
 
 	/**
 	 * **The diagnostic names what the final order actually breaks**, checked against that order

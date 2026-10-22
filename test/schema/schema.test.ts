@@ -42,9 +42,12 @@ const collections: { label: string; collection: unknown }[] = [];
 beforeAll(async () => {
 	for (const spec of ownedSpecs()) {
 		const label = specLabel(spec);
+		// A fixture with a GraphQL surface is compiled with it, so its GraphQL folder is validated too.
+		const graphql = readFileSync(spec, "utf8").includes('import "typespec-http-graphql"');
 		const compiled = await compileSpec(
 			spec,
 			join(here, ".out", "schema", label.replaceAll("/", "__")),
+			graphql ? { graphql: "before" } : {},
 		);
 		for (const file of readdirSync(compiled.outDir).filter((name) => name.endsWith(".json"))) {
 			collections.push({
@@ -56,8 +59,13 @@ beforeAll(async () => {
 }, 900_000);
 
 describe("the Postman Collection v2.1 schema", () => {
-	it("found collections to validate, from every fixture", () => {
+	it("found collections to validate, from every fixture, GraphQL requests among them", () => {
 		expect(collections.length).toBeGreaterThanOrEqual(ownedSpecs().length);
+		expect(
+			collections.filter(({ collection }) =>
+				JSON.stringify(collection).includes('"mode":"graphql"'),
+			).length,
+		).toBeGreaterThanOrEqual(3);
 	});
 
 	it("accepts every collection the emitter wrote", () => {

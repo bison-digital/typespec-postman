@@ -22,3 +22,4 @@ minimumReleaseAgeExclude:
   - typespec-http-zod@0.33.0
   - typespec-http-zod@0.34.0
   - typespec-http-graphql@0.3.0
+  - typespec-http-graphql@0.3.1

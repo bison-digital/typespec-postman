@@ -93,8 +93,8 @@ importers:
         specifier: 0.31.0
         version: 0.31.0(@hono/zod-validator@0.9.1(hono@4.13.7)(zod@4.6.5))(@typespec/compiler@1.17.0(@types/node@26.5.1))(@typespec/http@1.17.0(@typespec/compiler@1.17.0(@types/node@26.5.1))(@typespec/streams@0.87.0(@typespec/compiler@1.17.0(@types/node@26.5.1))))(@typespec/openapi@1.17.0(@typespec/compiler@1.17.0(@types/node@26.5.1))(@typespec/http@1.17.0(@typespec/compiler@1.17.0(@types/node@26.5.1))(@typespec/streams@0.87.0(@typespec/compiler@1.17.0(@types/node@26.5.1)))))(@typespec/streams@0.87.0(@typespec/compiler@1.17.0(@types/node@26.5.1)))(@typespec/versioning@0.87.0(@typespec/compiler@1.17.0(@types/node@26.5.1)))(hono@4.13.7)(secure-json-parse@4.1.1)(zod@4.6.5)
       typespec-http-graphql:
-        specifier: 0.3.0
-        version: 0.3.0(@typespec/compiler@1.17.0(@types/node@26.5.1))(@typespec/http@1.17.0(@typespec/compiler@1.17.0(@types/node@26.5.1))(@typespec/streams@0.87.0(@typespec/compiler@1.17.0(@types/node@26.5.1))))(@typespec/openapi@1.17.0(@typespec/compiler@1.17.0(@types/node@26.5.1))(@typespec/http@1.17.0(@typespec/compiler@1.17.0(@types/node@26.5.1))(@typespec/streams@0.87.0(@typespec/compiler@1.17.0(@types/node@26.5.1)))))(@typespec/streams@0.87.0(@typespec/compiler@1.17.0(@types/node@26.5.1)))(@typespec/versioning@0.87.0(@typespec/compiler@1.17.0(@types/node@26.5.1)))(graphql@17.0.2)(zod@4.6.5)
+        specifier: 0.3.1
+        version: 0.3.1(@typespec/compiler@1.17.0(@types/node@26.5.1))(@typespec/http@1.17.0(@typespec/compiler@1.17.0(@types/node@26.5.1))(@typespec/streams@0.87.0(@typespec/compiler@1.17.0(@types/node@26.5.1))))(@typespec/openapi@1.17.0(@typespec/compiler@1.17.0(@types/node@26.5.1))(@typespec/http@1.17.0(@typespec/compiler@1.17.0(@types/node@26.5.1))(@typespec/streams@0.87.0(@typespec/compiler@1.17.0(@types/node@26.5.1)))))(@typespec/streams@0.87.0(@typespec/compiler@1.17.0(@types/node@26.5.1)))(@typespec/versioning@0.87.0(@typespec/compiler@1.17.0(@types/node@26.5.1)))(graphql@17.0.2)(zod@4.6.5)
       typespec-postman:
         specifier: link:.
         version: 'link:'
@@ -2137,8 +2137,8 @@ packages:
       secure-json-parse: ^4.1.1
       zod: ^4.5.0
 
-  typespec-http-graphql@0.3.0:
-    resolution: {integrity: sha512-mygEOhjejHjFGyG2/8y2OfOYXxpyjaBdmq9w8RGNw1quk4e5kNMdUk3+D2I//U8VFM09Hsp9xj7kr0UP0zU5QQ==}
+  typespec-http-graphql@0.3.1:
+    resolution: {integrity: sha512-Hq+gTsulsHkRrtCWo98Mf3H6+pj5CNkZFy7rML4hYYLWDiDKg8wo+LHVQhSAM58A+juJ97FeOyo1N4EI5VzNnw==}
     engines: {node: '>=22.0.0'}
     peerDependencies:
       '@typespec/compiler': ^1.15.0
@@ -4310,7 +4310,7 @@ snapshots:
       - '@typespec/streams'
       - '@typespec/versioning'
 
-  typespec-http-graphql@0.3.0(@typespec/compiler@1.17.0(@types/node@26.5.1))(@typespec/http@1.17.0(@typespec/compiler@1.17.0(@types/node@26.5.1))(@typespec/streams@0.87.0(@typespec/compiler@1.17.0(@types/node@26.5.1))))(@typespec/openapi@1.17.0(@typespec/compiler@1.17.0(@types/node@26.5.1))(@typespec/http@1.17.0(@typespec/compiler@1.17.0(@types/node@26.5.1))(@typespec/streams@0.87.0(@typespec/compiler@1.17.0(@types/node@26.5.1)))))(@typespec/streams@0.87.0(@typespec/compiler@1.17.0(@types/node@26.5.1)))(@typespec/versioning@0.87.0(@typespec/compiler@1.17.0(@types/node@26.5.1)))(graphql@17.0.2)(zod@4.6.5):
+  typespec-http-graphql@0.3.1(@typespec/compiler@1.17.0(@types/node@26.5.1))(@typespec/http@1.17.0(@typespec/compiler@1.17.0(@types/node@26.5.1))(@typespec/streams@0.87.0(@typespec/compiler@1.17.0(@types/node@26.5.1))))(@typespec/openapi@1.17.0(@typespec/compiler@1.17.0(@types/node@26.5.1))(@typespec/http@1.17.0(@typespec/compiler@1.17.0(@types/node@26.5.1))(@typespec/streams@0.87.0(@typespec/compiler@1.17.0(@types/node@26.5.1)))))(@typespec/streams@0.87.0(@typespec/compiler@1.17.0(@types/node@26.5.1)))(@typespec/versioning@0.87.0(@typespec/compiler@1.17.0(@types/node@26.5.1)))(graphql@17.0.2)(zod@4.6.5):
     dependencies:
       '@typespec/compiler': 1.17.0(@types/node@26.5.1)
       '@typespec/http': 1.17.0(@typespec/compiler@1.17.0(@types/node@26.5.1))(@typespec/streams@0.87.0(@typespec/compiler@1.17.0(@types/node@26.5.1)))

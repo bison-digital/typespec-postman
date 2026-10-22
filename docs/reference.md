@@ -220,7 +220,7 @@ Remedy: list `typespec-http-graphql` before `typespec-postman` in `emit:`.
 The typespec-http-graphql this compile runs publishes no `graphqlRequestsOf`: a version before
 0.3.0. The collection holds no GraphQL request.
 
-Remedy: install typespec-http-graphql 0.3.0 or later.
+Remedy: install typespec-http-graphql 0.3.1 or later.
 
 ### `graphql-url-invalid`
 

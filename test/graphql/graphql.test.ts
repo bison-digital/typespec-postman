@@ -324,3 +324,77 @@ describe("a versioned service, at its latest version", () => {
 		expect(Object.keys(rest)).not.toContain("colour");
 	});
 });
+
+describe("a spec's corners", () => {
+	let corners: Compiled;
+	let warned: Compiled;
+	beforeAll(async () => {
+		corners = await compileFixture(here, "corners", { graphql: "before" });
+		warned = await compileFixture(here, "corners", {
+			graphql: "before",
+			outName: "corners-url",
+			postman: { "graphql-url": "/graphql" },
+		});
+	}, 300_000);
+	const collection = () => corners.collection("Corners.postman_collection.json");
+
+	/**
+	 * `@typespec/openapi3` merges a shared route's parameters and marks optional, on the operation
+	 * itself, each one not every operation of the route takes. typespec-http-graphql planned the field
+	 * before that, so its argument is still required, and the REST request's value is what fills it.
+	 */
+	it("sends every argument a field requires, though the REST request leaves its value out", () => {
+		const variables = graphqlOf(requestNamed(collection(), "query booksByTitle", "GraphQL"))
+			?.graphql.variables;
+		expect(JSON.parse(variables ?? "{}")).toEqual({ title: "title" });
+	});
+
+	it("runs a read before the delete of what it reads, though the REST folders cannot", () => {
+		expect(codes(corners)).toContain("typespec-postman/order-cycle");
+		expect(folderNamed(collection(), "GraphQL").item?.map((item) => item.name)).toEqual([
+			"create (Authors)",
+			"query author",
+			"query profile",
+			"query booksByTitle",
+			"mutation deleteAuthor",
+		]);
+	});
+
+	it("gives the GraphQL folder an id no folder of the spec shares", () => {
+		const ids: string[] = [];
+		const walk = (items: readonly PostmanItem[]) => {
+			for (const item of items) {
+				if (item.id !== undefined) ids.push(item.id);
+				if (item.item !== undefined) walk(item.item);
+			}
+		};
+		walk(collection().item);
+		expect(folderNamed(collection(), "graphql").id).not.toBe(
+			folderNamed(collection(), "GraphQL").id,
+		);
+		expect(new Set(ids).size).toBe(ids.length);
+	});
+
+	it("warns of a graphql-url every service shares once, not once per service", () => {
+		expect(codes(warned).filter((code) => code === "typespec-postman/graphql-url-invalid")).toEqual(
+			["typespec-postman/graphql-url-invalid"],
+		);
+	});
+});
+
+describe("graphql-url ending in a slash", () => {
+	let slashed: Compiled;
+	beforeAll(async () => {
+		slashed = await compileFixture(here, "main", {
+			graphql: "before",
+			outName: "slashed-url",
+			postman: { "graphql-url": "{{endpoint}}/api/graphql/" },
+		});
+	}, 300_000);
+
+	it("keeps the slash, since a server may mount the route with it", () => {
+		const request = requestNamed(slashed.collection(), "query author", "GraphQL").request;
+		expect(request?.url.raw).toBe("{{endpoint}}/api/graphql/");
+		expect(request?.url.path).toEqual(["api", "graphql", ""]);
+	});
+});

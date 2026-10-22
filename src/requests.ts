@@ -43,10 +43,13 @@ export interface DerivedRequest {
 	/**
 	 * **What the request sends, as values rather than text**, for a request of another protocol
 	 * calling the same operation to send the same: each parameter it sends, by wire name, and, for a
-	 * path parameter a created id fills, the collection variable that stands in for it.
+	 * path parameter a created id fills, the collection variable that stands in for it. `omitted`
+	 * holds the value of each optional parameter it leaves out, ready where the other protocol
+	 * requires one.
 	 */
 	readonly values: {
 		readonly parameters: Readonly<Record<string, JsonValue>>;
+		readonly omitted: Readonly<Record<string, JsonValue>>;
 		readonly chained: ReadonlyMap<string, Chained>;
 	};
 }
@@ -96,6 +99,7 @@ export function deriveRequest(
 
 	const url = deriveUrl(program, operation, chains, valueFor);
 	const parameters: Record<string, JsonValue> = {};
+	const omitted: Record<string, JsonValue> = {};
 	const chained = new Map<string, Chained>();
 	for (const parameter of operation.parameters.parameters) {
 		if (parameter.type !== "path") continue;
@@ -115,7 +119,7 @@ export function deriveRequest(
 		if (parameter.type !== "query") continue;
 		const { value, fromExample } = valueFor(parameter);
 		const disabled = parameter.param.optional && !fromExample;
-		if (!disabled) parameters[parameter.name] = value;
+		(disabled ? omitted : parameters)[parameter.name] = value;
 		for (const [key, text] of expandQuery(
 			parameter.name,
 			parameter.explode ?? false,
@@ -133,7 +137,7 @@ export function deriveRequest(
 		if (parameter.type === "header") {
 			const { value, fromExample } = valueFor(parameter);
 			const disabled = parameter.param.optional && !fromExample;
-			if (!disabled) parameters[parameter.name] = value;
+			(disabled ? omitted : parameters)[parameter.name] = value;
 			const text =
 				parameter.name.toLowerCase() === "content-type" && body.contentType !== undefined
 					? body.contentType
@@ -150,6 +154,8 @@ export function deriveRequest(
 			if (!parameter.param.optional) {
 				cookies.push(`${parameter.name}=${encodeValue(String(value), false)}`);
 				parameters[parameter.name] = value;
+			} else {
+				omitted[parameter.name] = value;
 			}
 		}
 	}
@@ -176,7 +182,7 @@ export function deriveRequest(
 		headers,
 		body: body.body,
 		sent: body.sent,
-		values: { parameters, chained },
+		values: { parameters, omitted, chained },
 	};
 }
 

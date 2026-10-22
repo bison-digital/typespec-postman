@@ -161,7 +161,7 @@ const diagnostics = {
 	"graphql-requests-unavailable": {
 		severity: "warning",
 		messages: {
-			default: paramMessage`The 'typespec-http-graphql' this compile runs publishes no 'graphqlRequestsOf' (version ${"version"}), so the collection holds no GraphQL request. Install typespec-http-graphql 0.3.0 or later.`,
+			default: paramMessage`The 'typespec-http-graphql' this compile runs publishes no 'graphqlRequestsOf' (version ${"version"}), so the collection holds no GraphQL request. Install typespec-http-graphql 0.3.1 or later.`,
 		},
 	},
 	"graphql-url-invalid": {

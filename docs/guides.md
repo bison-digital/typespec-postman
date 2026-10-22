@@ -38,13 +38,16 @@ options:
 The `GraphQL` folder holds one request per root field, each in `graphql` mode with the document
 typespec-http-graphql writes for it, so it matches the schema the server builds. Its variables are the
 values the REST request for the same operation sends, created ids included as their collection
-variables, and its auth is that request's. The folder first creates what its reads need, by copies of
-the REST creates, so a read runs against data that exists; deletes still run last. Each request
-asserts a 200, no `errors`, a value for its field and, for a mutation, one of its success members, so
-a declared refusal is not read as a pass.
+variables, and any argument the field requires that the REST request leaves out, as a shared route's
+query parameter can be. Its auth is that request's. The folder first creates what its reads need, by
+copies of the REST creates, so a read runs against data that exists, then runs each request after
+what creates what it uses and each delete after every other use of what it deletes. The REST folders
+each run as a whole and may have to give such an order up (`order-cycle`); the GraphQL folder is flat
+and keeps it. Each request asserts a 200, no `errors`, a value for its field and, for a mutation, one
+of its success members, so a declared refusal is not read as a pass.
 
-`graphql-url` is where the server mounts its GraphQL endpoint, `{{baseUrl}}/graphql` unless set.
-Set `services.<name>.graphql-url` where services mount theirs apart.
+`graphql-url` is where the server mounts its GraphQL endpoint, `{{baseUrl}}/graphql` unless set, a
+trailing slash kept as written. Set `services.<name>.graphql-url` where services mount theirs apart.
 
 ## Checking the collection in CI
 

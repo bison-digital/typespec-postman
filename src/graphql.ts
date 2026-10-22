@@ -95,31 +95,76 @@ export interface GraphQLUrl {
 
 const URL_SHAPE = /^(\{\{[^{}]+\}\}|https?:\/\/[^/?#]+)((?:\/[^?#]*)?)$/;
 
+/** A trailing slash is kept, as a last empty segment: a server may mount the route with it. */
 function parsed(url: string): GraphQLUrl | undefined {
 	const match = URL_SHAPE.exec(url);
 	if (match === null) return undefined;
-	return {
-		host: match[1] ?? "",
-		path: (match[2] ?? "").split("/").filter((segment) => segment !== ""),
+	return { host: match[1] ?? "", path: (match[2] ?? "").split("/").slice(1) };
+}
+
+/**
+ * Where each service's GraphQL requests go: its own `graphql-url`, else the emitter's, else
+ * `{{baseUrl}}/graphql`. A URL naming no host is warned of once, however many services it reaches.
+ */
+export function graphqlUrls(
+	program: Program,
+	options: EmitterOptions,
+): (service: string) => GraphQLUrl {
+	const warned = new Set<string>();
+	return (service) => {
+		const url =
+			options.services?.[service]?.["graphql-url"] ?? options["graphql-url"] ?? DEFAULT_GRAPHQL_URL;
+		const read = parsed(url);
+		if (read !== undefined) return read;
+		if (!warned.has(url)) {
+			warned.add(url);
+			reportDiagnostic(program, {
+				code: "graphql-url-invalid",
+				format: { url, fallback: DEFAULT_GRAPHQL_URL },
+				target: NoTarget,
+			});
+		}
+		return parsed(DEFAULT_GRAPHQL_URL) as GraphQLUrl;
 	};
 }
 
-/** The service's own `graphql-url`, else the emitter's, else `{{baseUrl}}/graphql`. */
-export function graphqlUrlOf(
-	program: Program,
-	options: EmitterOptions,
-	service: string,
-): GraphQLUrl {
-	const url =
-		options.services?.[service]?.["graphql-url"] ?? options["graphql-url"] ?? DEFAULT_GRAPHQL_URL;
-	const read = parsed(url);
-	if (read !== undefined) return read;
-	reportDiagnostic(program, {
-		code: "graphql-url-invalid",
-		format: { url, fallback: DEFAULT_GRAPHQL_URL },
-		target: NoTarget,
-	});
-	return parsed(DEFAULT_GRAPHQL_URL) as GraphQLUrl;
+/**
+ * **A GraphQL request's variables: what the REST request sends, and what the field still requires.**
+ * A parameter can read optional here and required to typespec-http-graphql: `@typespec/openapi3`
+ * marks optional, on the operation itself, each parameter of a shared route not every operation of
+ * the route takes, and typespec-http-graphql planned its field before that. The REST request leaves
+ * that value out; the GraphQL request takes it, and only the values its field requires.
+ */
+export function variablesOf(
+	request: GraphQLRequest,
+	sent: Readonly<Record<string, unknown>>,
+	omitted: Readonly<Record<string, unknown>>,
+	body: { readonly body?: unknown },
+): Readonly<Record<string, unknown>> {
+	const { value, missing } = request.variables({ parameters: sent, ...body });
+	if (missing.length === 0) return value;
+	const whole = request.variables({ parameters: { ...omitted, ...sent }, ...body }).value;
+	const filled = structuredClone(value) as Record<string, unknown>;
+	for (const path of missing) {
+		const keys = path.split(".");
+		const found = keys.reduce<unknown>(
+			(at, key) => (typeof at === "object" && at !== null ? Reflect.get(at, key) : undefined),
+			whole,
+		);
+		if (found === undefined) {
+			throw new Error(
+				`typespec-postman internal invariant: GraphQL field '${request.field}' requires '${path}', which no value of its REST request fills`,
+			);
+		}
+		let at: Record<string, unknown> = filled;
+		for (const key of keys.slice(0, -1)) {
+			const next = at[key];
+			at[key] = typeof next === "object" && next !== null ? next : {};
+			at = at[key] as Record<string, unknown>;
+		}
+		at[keys.at(-1) ?? path] = found;
+	}
+	return filled;
 }
 
 /**
