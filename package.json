@@ -1,6 +1,6 @@
 {
 	"name": "typespec-postman",
-	"version": "0.5.0",
+	"version": "0.5.1",
 	"description": "TypeSpec emitter: generate a Postman Collection v2.1 from an HTTP service definition, with requests, auth, chained ids and assertions derived from the spec.",
 	"keywords": [
 		"api-testing",

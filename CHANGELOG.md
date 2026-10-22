@@ -6,6 +6,14 @@ All notable changes to this package are documented here. The format follows
 generated collection counts as API: a change to what it contains for an unchanged spec is a minor
 version.
 
+## [0.5.1] - 2026-10-22
+
+A patch: the emitted collection is unchanged.
+
+### Changed
+
+- **Comments, documentation and test fixtures are rewritten in neutral terms.**
+
 ## [0.5.0] - 2026-10-21
 
 A minor, by this file's own rule: the collection's variables and error cases move for an unchanged
