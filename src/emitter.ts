@@ -1,5 +1,6 @@
 import { type EmitContext, emitFile, NoTarget, resolvePath } from "@typespec/compiler";
 import { deriveCollection } from "./collection.js";
+import { graphqlRequestsIn, graphqlUrlOf } from "./graphql.js";
 import { type EmitterOptions, reportDiagnostic } from "./lib.js";
 import { renderCollection } from "./render.js";
 import { loadResponseSchemas } from "./schemas.js";
@@ -17,6 +18,8 @@ export async function $onEmit(context: EmitContext<EmitterOptions>): Promise<voi
 	if (program.compilerOptions.dryRun || program.hasError()) return;
 
 	const selected = await selectServices(program, context.options);
+	// Read once: the warnings it raises are about the compile, not about any one service.
+	const graphql = graphqlRequestsIn(program);
 	const byPath = new Map<string, string[]>();
 	for (const entry of selected)
 		byPath.set(entry.outputFile, [...(byPath.get(entry.outputFile) ?? []), entry.fullName]);
@@ -25,10 +28,21 @@ export async function $onEmit(context: EmitContext<EmitterOptions>): Promise<voi
 		const sharing = byPath.get(entry.outputFile) ?? [];
 		if (sharing.length > 1) continue;
 		const schemas = await loadResponseSchemas(program, entry.service);
+		const requests = graphql?.get(entry.fullName);
 		const plan = deriveCollection(
 			program,
 			entry.service,
-			{ collectionAuth: context.options["collection-auth"] !== false },
+			{
+				collectionAuth: context.options["collection-auth"] !== false,
+				...(requests === undefined
+					? {}
+					: {
+							graphql: {
+								requests,
+								url: graphqlUrlOf(program, context.options, entry.fullName),
+							},
+						}),
+			},
 			schemas,
 		);
 		await emitFile(program, {

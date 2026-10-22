@@ -23,7 +23,9 @@ export type Mutant =
 	| "read-returns-other"
 	| "update-ignores-patch"
 	| "read-returns-malformed"
-	| "read-finds-anything";
+	| "read-finds-anything"
+	| "read-misses"
+	| "create-book-misses";
 
 type Input = Record<string, unknown>;
 
@@ -57,6 +59,7 @@ export function bookshopHandlers(
 		},
 		Authors_list: () => ({ status: 200, body: { items: [...authors.values()] } }),
 		Authors_read: (_ctx, input) => {
+			if (mutant === "read-misses") return notFound("No such author");
 			const author = authors.get(String(input["authorId"]));
 			if (author === undefined) {
 				return mutant === "read-finds-anything"
@@ -84,6 +87,7 @@ export function bookshopHandlers(
 			return { status: 204 };
 		},
 		Books_create: (_ctx, input) => {
+			if (mutant === "create-book-misses") return notFound("No such author");
 			const shelf = books.get(String(input["authorId"]));
 			if (shelf === undefined) return notFound("No such author");
 			const book: Book = {

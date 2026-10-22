@@ -1,6 +1,6 @@
 import { readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { compile, NodeHost } from "@typespec/compiler";
+import { compile, NodeHost, type Program } from "@typespec/compiler";
 
 /**
  * Compile one TypeSpec file with this emitter, and optionally the emitters it is graded against.
@@ -23,6 +23,8 @@ export interface Compiled {
 	/** The OpenAPI 3.1 document `@typespec/openapi3` wrote, when `openapi` was requested. */
 	document(file?: string): OpenApiDocument;
 	readonly serverDir: string;
+	/** The compiled program, for an arm that reads what another emitter of the compile recorded. */
+	readonly program: Program;
 }
 
 export interface CompileOptions {
@@ -32,6 +34,11 @@ export interface CompileOptions {
 	readonly openapi?: boolean;
 	/** Also emit a typespec-hono server into `server/`, as `run/` serves. */
 	readonly hono?: boolean;
+	/**
+	 * Also emit typespec-http-graphql into `server/`, beside the server, listed before this emitter
+	 * as its README asks, or after it, to grade the warning that order earns.
+	 */
+	readonly graphql?: "before" | "after";
 	readonly noEmit?: boolean;
 	readonly dryRun?: boolean;
 	/**
@@ -54,7 +61,9 @@ export async function compileSpec(
 	 */
 	rmSync(outDir, { recursive: true, force: true });
 	const emit = [
+		...(options.graphql === "before" ? ["typespec-http-graphql"] : []),
 		"typespec-postman",
+		...(options.graphql === "after" ? ["typespec-http-graphql"] : []),
 		...(options.openapi === true ? ["@typespec/openapi3"] : []),
 		...(options.hono === true ? ["typespec-hono"] : []),
 	];
@@ -78,11 +87,16 @@ export async function compileSpec(
 				"emitter-output-dir": join(outDir, "server"),
 				"seal-object-schemas": true,
 			},
+			"typespec-http-graphql": {
+				"emitter-output-dir": join(outDir, "server"),
+				"seal-object-schemas": true,
+			},
 		},
 	});
 	const read = (file: string) => readFileSync(join(outDir, file), "utf8");
 	return {
 		outDir,
+		program,
 		serverDir: join(outDir, "server"),
 		diagnostics: program.diagnostics.map((diagnostic) => ({
 			code: diagnostic.code,

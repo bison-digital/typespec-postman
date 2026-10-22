@@ -1,6 +1,7 @@
 import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import { serve } from "@hono/node-server";
+import { createYoga } from "graphql-yoga";
 import { Hono } from "hono";
 import type { OpenApiDocument, SecurityScheme } from "./compile.js";
 
@@ -87,6 +88,12 @@ export async function serveGenerated(
 		readonly acceptInvalid?: boolean;
 		/** Admit every caller, credentialed or not. */
 		readonly ignoreAuth?: boolean;
+		/**
+		 * Also serve the typespec-http-graphql schema emitted into `serverDir`, at `<basePath>/graphql`
+		 * through GraphQL Yoga, as that package's README mounts it, from the same handlers. Each
+		 * field is authorised by the same `securitySchemes`.
+		 */
+		readonly graphql?: boolean;
 	} = {},
 ): Promise<Served> {
 	const generated = (await import(join(serverDir, "app.gen.ts"))) as {
@@ -151,21 +158,44 @@ export async function serveGenerated(
 		});
 	}
 	const unauthorized = (c: HonoContext): Response => c.json({ title: "Unauthorized" }, 401);
+	const admits = (requirements: readonly Record<string, readonly string[]>[], c: HonoContext) =>
+		overrides.ignoreAuth === true ||
+		requirements.length === 0 ||
+		requirements.some((requirement) =>
+			Object.keys(requirement).every((name) => satisfied(schemes[name], c)),
+		);
+	if (overrides.graphql === true) {
+		const emitted = (await import(join(serverDir, "graphql.gen.ts"))) as {
+			createSchema: (
+				handlersFor: (context: { c: HonoContext }) => Handlers,
+				deps: unknown,
+			) => unknown;
+		};
+		const schema = emitted.createSchema(
+			(context) => (typeof handlers === "function" ? handlers(context.c) : handlers),
+			{
+				authorize: (
+					context: { readonly c: HonoContext },
+					requirements: readonly Record<string, readonly string[]>[],
+				) => (admits(requirements, context.c) ? "allow" : "unauthenticated"),
+				context: () => ({ surface: "graphql" }),
+			},
+		);
+		const yoga = createYoga({ schema: schema as never, logging: false });
+		mounted.on(["GET", "POST"], "/graphql", async (c) => {
+			const response = await yoga.fetch(c.req.raw, { c });
+			return c.newResponse(response.body, response);
+		});
+	}
 	generated.registerRoutes(mounted, typeof handlers === "function" ? handlers : () => handlers, {
 		authorize:
 			(requirements: readonly Record<string, readonly string[]>[]) =>
 			async (c: HonoContext, next: () => Promise<void>) => {
-				const ok =
-					overrides.ignoreAuth === true ||
-					requirements.length === 0 ||
-					requirements.some((requirement) =>
-						Object.keys(requirement).every((name) => satisfied(schemes[name], c)),
-					);
-				if (!ok) return unauthorized(c);
+				if (!admits(requirements, c)) return unauthorized(c);
 				await next();
 				return undefined;
 			},
-		context: () => ({}),
+		context: () => ({ surface: "rest" }),
 		noContext: unauthorized,
 		notAcceptable: (c: HonoContext) => c.json({ title: "Not acceptable" }, 406),
 		invalid: (result: { success: boolean; error?: unknown }, c: HonoContext) =>

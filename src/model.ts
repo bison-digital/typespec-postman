@@ -89,6 +89,11 @@ export interface PlanParam {
 }
 
 export interface PlanUrl {
+	/**
+	 * The host as Postman stores it, where it is not the service's `{{baseUrl}}`: the `graphql-url`
+	 * a GraphQL request is sent to.
+	 */
+	readonly host?: string;
 	/** Path segments as Postman stores them: a literal, `:name`, or text carrying `{{variable}}`. */
 	readonly path: readonly string[];
 	readonly query: readonly PlanParam[];
@@ -101,7 +106,9 @@ export type PlanBody =
 	| { readonly mode: "raw"; readonly raw: string; readonly language: "json" | "text" }
 	| { readonly mode: "urlencoded"; readonly fields: readonly PlanParam[] }
 	| { readonly mode: "formdata"; readonly parts: readonly PlanFormPart[] }
-	| { readonly mode: "file" };
+	| { readonly mode: "file" }
+	/** A GraphQL document, and its variables as JSON text, which `{{variable}}`s may stand in. */
+	| { readonly mode: "graphql"; readonly query: string; readonly variables: string };
 
 export type PlanFormPart =
 	| {
@@ -164,6 +171,15 @@ export type PlanAssertion =
 			readonly kind: "json-schema";
 			readonly schemas: readonly { readonly status: number; readonly schema: unknown }[];
 			readonly unknownFormats: readonly string[];
+	  }
+	/**
+	 * A GraphQL answer that succeeded: a 200 with no `errors`, a value for the field, and, where the
+	 * field is a union, one of its success members, so a mutation's declared refusal is no success.
+	 */
+	| {
+			readonly kind: "graphql-success";
+			readonly field: string;
+			readonly typenames: readonly string[] | undefined;
 	  };
 
 export type StatusMatch = number | { readonly start: number; readonly end: number };

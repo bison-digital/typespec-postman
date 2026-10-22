@@ -6,6 +6,28 @@ All notable changes to this package are documented here. The format follows
 generated collection counts as API: a change to what it contains for an unchanged spec is a minor
 version.
 
+## [0.6.0] - 2026-10-22
+
+A minor, by this file's own rule: a spec with a GraphQL surface, compiled with typespec-http-graphql,
+gets requests it did not get before. A spec without one emits what 0.5.1 emits.
+
+### Added
+
+- **GraphQL requests.** Where the same compile emits typespec-http-graphql (0.3.0 or later, listed
+  first in `emit:`), the collection gains a `GraphQL` folder: a `graphql`-mode request for each
+  `@queryField` and `@mutationField` it served, at `{{baseUrl}}/graphql`. Each document is the one
+  typespec-http-graphql writes for the field, read from the copy of it the compiler ran, so it
+  matches the schema that emitter serves; each request's variables are the values the REST request
+  for its operation sends, a created id as its collection variable, and its auth is that request's.
+  The folder starts with copies of the creates its reads need, so a read runs against data that
+  exists, and each request asserts a 200, no `errors`, a value for its field and, for a mutation,
+  one of its success members.
+- **`graphql-url`** and **`services.<name>.graphql-url`**: where the GraphQL requests go.
+- `graphql-emitted-later`, `graphql-requests-unavailable` and `graphql-url-invalid`: the warnings for
+  a typespec-http-graphql listed after this emitter, one too old to publish its requests, and a
+  `graphql-url` with no host.
+- `typespec-http-graphql` `^0.3.0` as an optional peer. Nothing imports it.
+
 ## [0.5.1] - 2026-10-22
 
 A patch: the emitted collection is unchanged.

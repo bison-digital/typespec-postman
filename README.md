@@ -28,7 +28,8 @@ Install as a devDependency beside the TypeSpec compiler. Nothing the emitter wri
 pnpm add -D typespec-postman @typespec/compiler @typespec/http @typespec/openapi3
 ```
 
-`@typespec/versioning` is an optional peer, needed only by a versioned spec.
+`@typespec/versioning` is an optional peer, needed only by a versioned spec, and so is
+`typespec-http-graphql`, needed only by a spec with a GraphQL surface.
 
 ## What the collection contains
 
@@ -49,6 +50,13 @@ pnpm add -D typespec-postman @typespec/compiler @typespec/http @typespec/openapi
   resource is the one requested, and that an updated field holds the value sent.
 - **Error cases** the spec declares: an unknown id answered 404, a body missing a required property
   answered 400, and a request without credentials answered 401, each with its declared error body.
+- **GraphQL requests**, where the same compile emits typespec-http-graphql: a `GraphQL` folder with a
+  `graphql`-mode request for each `@queryField` and `@mutationField` it served, at
+  `{{baseUrl}}/graphql` (`graphql-url`). Each document is the one typespec-http-graphql writes for
+  the field, so it matches the schema it serves; each request's variables are the values the REST
+  request for its operation sends, and its auth is that request's. The folder starts with copies of
+  the creates its reads need, and asserts each answer has no `errors`, a value, and, for a mutation,
+  a success member. List `typespec-http-graphql` before this emitter in `emit:`.
 
 The file is Postman Collection Format v2.1, byte-identical for identical input.
 

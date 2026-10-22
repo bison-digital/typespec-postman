@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 /**
@@ -18,11 +19,22 @@ const SYSTEM = [
 	"test/schemas/**/*.test.ts",
 ];
 
+/**
+ * **One graphql, as Node loads it.** The run suite builds an emitted GraphQL schema imported through
+ * Vite, which resolves graphql's `development` build, and serves it with GraphQL Yoga, which Node
+ * loads with the default build: two copies, and every request answers "Unexpected error.". The alias
+ * is typespec-http-graphql's own README's, for a consumer testing under vitest.
+ */
+const resolve = {
+	alias: [{ find: /^graphql$/, replacement: fileURLToPath(import.meta.resolve("graphql")) }],
+};
+
 export default defineConfig({
 	test: {
 		testTimeout: 180_000,
 		projects: [
 			{
+				resolve,
 				test: {
 					name: "unit",
 					environment: "node",
@@ -32,6 +44,7 @@ export default defineConfig({
 				},
 			},
 			{
+				resolve,
 				test: {
 					name: "system",
 					environment: "node",

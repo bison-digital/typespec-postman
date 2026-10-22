@@ -18,6 +18,34 @@ options:
 
 `tsp compile .` writes `postman/postman_collection.json`. Commit it.
 
+## Calling a GraphQL surface
+
+A spec that declares a GraphQL surface with typespec-http-graphql gets GraphQL requests in the same
+collection, when both emitters run in one compile. List typespec-http-graphql first: the requests
+are what it recorded as it emitted.
+
+```yaml
+# tspconfig.yaml
+emit:
+  - typespec-http-graphql
+  - typespec-postman
+options:
+  typespec-postman:
+    emitter-output-dir: "{project-root}/postman"
+    graphql-url: "{{baseUrl}}/graphql"
+```
+
+The `GraphQL` folder holds one request per root field, each in `graphql` mode with the document
+typespec-http-graphql writes for it, so it matches the schema the server builds. Its variables are the
+values the REST request for the same operation sends, created ids included as their collection
+variables, and its auth is that request's. The folder first creates what its reads need, by copies of
+the REST creates, so a read runs against data that exists; deletes still run last. Each request
+asserts a 200, no `errors`, a value for its field and, for a mutation, one of its success members, so
+a declared refusal is not read as a pass.
+
+`graphql-url` is where the server mounts its GraphQL endpoint, `{{baseUrl}}/graphql` unless set.
+Set `services.<name>.graphql-url` where services mount theirs apart.
+
 ## Checking the collection in CI
 
 The collection is generated, so a pull request that changes the spec and not the collection is out of

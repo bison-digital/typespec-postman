@@ -57,6 +57,17 @@ describe("the package declares what it needs to run outside this checkout", () =
 		expect(manifest.peerDependenciesMeta?.["@typespec/versioning"]?.optional).toBe(true);
 	});
 
+	/**
+	 * **typespec-http-graphql is read, never imported**: its requests come off the module the compiler
+	 * ran, through `program.emitters`. The peer states which versions publish them, and is optional,
+	 * because only a spec with a GraphQL surface has any.
+	 */
+	it("names typespec-http-graphql as an optional peer it never imports", () => {
+		expect(manifest.peerDependencies?.["typespec-http-graphql"]).toBe("^0.3.0");
+		expect(manifest.peerDependenciesMeta?.["typespec-http-graphql"]?.optional).toBe(true);
+		expect(imported.has("typespec-http-graphql")).toBe(false);
+	});
+
 	it("names ranges, never paths", () => {
 		for (const [name, range] of Object.entries(manifest.peerDependencies ?? {})) {
 			expect(`${name}: ${range}`).not.toMatch(/\b(?:file|link|portal):/);

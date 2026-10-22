@@ -30,11 +30,19 @@ export interface EmitterOptions {
 	"output-file"?: string;
 	/** Whether auth the service namespace declares is set on the collection object itself. */
 	"collection-auth"?: boolean;
+	/**
+	 * Where the service's GraphQL surface is served, when typespec-http-graphql is emitted in the same
+	 * compile: a URL whose host is a `{{variable}}` or an `http`/`https` origin.
+	 */
+	"graphql-url"?: string;
 	/** Per-service overrides, keyed by the service namespace's full name. */
-	services?: Record<string, { "emit-collection"?: boolean }>;
+	services?: Record<string, { "emit-collection"?: boolean; "graphql-url"?: string }>;
 }
 
 export const DEFAULT_OUTPUT_FILE = "{service-name-if-multiple}.postman_collection.json";
+
+/** The GraphQL surface's URL where no option names one: where typespec-http-graphql's README mounts it. */
+export const DEFAULT_GRAPHQL_URL = "{{baseUrl}}/graphql";
 
 const EmitterOptionsSchema: JSONSchemaType<EmitterOptions> = {
 	type: "object",
@@ -42,6 +50,7 @@ const EmitterOptionsSchema: JSONSchemaType<EmitterOptions> = {
 	properties: {
 		"output-file": { type: "string", nullable: true },
 		"collection-auth": { type: "boolean", nullable: true },
+		"graphql-url": { type: "string", nullable: true },
 		services: {
 			type: "object",
 			nullable: true,
@@ -49,7 +58,10 @@ const EmitterOptionsSchema: JSONSchemaType<EmitterOptions> = {
 			additionalProperties: {
 				type: "object",
 				additionalProperties: false,
-				properties: { "emit-collection": { type: "boolean", nullable: true } },
+				properties: {
+					"emit-collection": { type: "boolean", nullable: true },
+					"graphql-url": { type: "string", nullable: true },
+				},
 				required: [],
 			},
 		},
@@ -136,6 +148,28 @@ const diagnostics = {
 			default: paramMessage`Services ${"services"} all resolve to '${"path"}', so none of them is written. Put '{service-name}' in 'output-file'.`,
 		},
 	},
+	/**
+	 * The GraphQL requests are typespec-http-graphql's record of what it served, which exists only
+	 * once it has run: listed after this emitter, it has not.
+	 */
+	"graphql-emitted-later": {
+		severity: "warning",
+		messages: {
+			default: paramMessage`'typespec-http-graphql' is listed after '${"emitter"}' in 'emit:', so it has not run when the collection is written, and the collection holds no GraphQL request. List it first.`,
+		},
+	},
+	"graphql-requests-unavailable": {
+		severity: "warning",
+		messages: {
+			default: paramMessage`The 'typespec-http-graphql' this compile runs publishes no 'graphqlRequestsOf' (version ${"version"}), so the collection holds no GraphQL request. Install typespec-http-graphql 0.3.0 or later.`,
+		},
+	},
+	"graphql-url-invalid": {
+		severity: "warning",
+		messages: {
+			default: paramMessage`'graphql-url' is '${"url"}', which is no URL whose host is a {{variable}} or an http or https origin, so the GraphQL requests go to '${"fallback"}'.`,
+		},
+	},
 } as const;
 
 /**
@@ -160,6 +194,9 @@ type Diagnostics = {
 	"no-success-response": { readonly default: CallableMessage<["operation"]> };
 	"shared-output-file": { readonly default: CallableMessage<["services", "path"]> };
 	"schema-unavailable": { readonly default: CallableMessage<["service", "reason"]> };
+	"graphql-emitted-later": { readonly default: CallableMessage<["emitter"]> };
+	"graphql-requests-unavailable": { readonly default: CallableMessage<["version"]> };
+	"graphql-url-invalid": { readonly default: CallableMessage<["url", "fallback"]> };
 };
 
 export const $lib: TypeSpecLibrary<Diagnostics, EmitterOptions> = createTypeSpecLibrary({

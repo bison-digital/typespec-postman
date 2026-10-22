@@ -7,32 +7,35 @@
 | `output-file`                     | `{service-name-if-multiple}.postman_collection.json` | The file written per service, relative to `emitter-output-dir`. Interpolated as `@typespec/openapi3` interpolates its own `output-file`: `{service-name}` is the service namespace's full name, and `{service-name-if-multiple}` is that name only when the program declares more than one service. |
 | `collection-auth`                 | `true`                                               | Whether the auth the service namespace declares is set on the collection object. When `false`, folders and root requests carry it instead, so every request still authenticates.                                                                                                                    |
 | `services.<name>.emit-collection` | `true`                                               | `false` writes no collection for that service. `<name>` is the service namespace's full name.                                                                                                                                                                                                       |
+| `graphql-url`                     | `{{baseUrl}}/graphql`                                | Where the GraphQL requests go, when typespec-http-graphql is emitted in the same compile: a URL whose host is a `{{variable}}` or an `http` or `https` origin.                                                                                                                                      |
+| `services.<name>.graphql-url`     | `graphql-url`                                        | Where that service's GraphQL requests go: each service has its own schema.                                                                                                                                                                                                                          |
 
 `emitter-output-dir` is honoured. Nothing is written under `noEmit`, on a dry run, or when the program
 has errors.
 
 ## What is derived, and from what
 
-| part of the collection                | derived from                                                                                                                                                                                                                           |
-| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| collection name and description       | `@service` title, otherwise the namespace name; the namespace's doc comment                                                                                                                                                            |
-| collection id, folder and request ids | a digest of the service, folder and operation identity (the same spec always gives the same ids)                                                                                                                                       |
-| `baseUrl`                             | the first `@server`, with each `{name}` written `{{name}}`                                                                                                                                                                             |
-| server variables                      | each `@server` parameter, defaulted from its default, otherwise its first enum or literal value                                                                                                                                        |
-| folders                               | `HttpOperation.container`: the declaring interface or namespace, named relative to the service                                                                                                                                         |
-| folder nesting                        | the chaining convention: a folder whose routes sit directly under a resource nests in that resource's folder                                                                                                                           |
-| request name                          | `@summary`, otherwise the operation name                                                                                                                                                                                               |
-| method and route                      | `HttpOperation.verb` and `HttpOperation.uriTemplate`, expanded per RFC 6570                                                                                                                                                            |
-| path variables                        | whole-segment path parameters, valued from `@opExample`, `@example`, or generated                                                                                                                                                      |
-| query parameters                      | `@query` parameters, and a query string written literally in the route (`/items?fixed=true{&param}`); optional ones are listed disabled unless an example sets them                                                                    |
-| headers                               | `@header` parameters; `Content-Type` from the body; `Accept` from the first response body                                                                                                                                              |
-| cookies                               | `@cookie` parameters and cookie API keys, as one `Cookie` header                                                                                                                                                                       |
-| body                                  | `@opExample`, then the model's `@example`, then generated at the request's visibility                                                                                                                                                  |
-| auth                                  | `resolveAuthentication`: collection from the service namespace, folder from the interface, request where the operation differs                                                                                                         |
-| credential variables                  | each security scheme used, named for the scheme id `@typespec/openapi3` publishes, first letter lowered (`ApiKeyAuth_` is `apiKeyAuth_`)                                                                                               |
-| chained id variables                  | the chaining convention: empty where an operation creates the resource, and the value the request would otherwise have carried where none does                                                                                         |
-| order                                 | the chaining convention, then declaration order                                                                                                                                                                                        |
-| assertions                            | the declared statuses; each response's media type, required headers, empty body or draft-07 schema, from `@typespec/openapi3`'s document built in-process; the chaining convention's roles; an `@opExample` body for update assertions |
+| part of the collection                | derived from                                                                                                                                                                                                                                                                                                     |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| collection name and description       | `@service` title, otherwise the namespace name; the namespace's doc comment                                                                                                                                                                                                                                      |
+| collection id, folder and request ids | a digest of the service, folder and operation identity (the same spec always gives the same ids)                                                                                                                                                                                                                 |
+| `baseUrl`                             | the first `@server`, with each `{name}` written `{{name}}`                                                                                                                                                                                                                                                       |
+| server variables                      | each `@server` parameter, defaulted from its default, otherwise its first enum or literal value                                                                                                                                                                                                                  |
+| folders                               | `HttpOperation.container`: the declaring interface or namespace, named relative to the service                                                                                                                                                                                                                   |
+| folder nesting                        | the chaining convention: a folder whose routes sit directly under a resource nests in that resource's folder                                                                                                                                                                                                     |
+| request name                          | `@summary`, otherwise the operation name                                                                                                                                                                                                                                                                         |
+| method and route                      | `HttpOperation.verb` and `HttpOperation.uriTemplate`, expanded per RFC 6570                                                                                                                                                                                                                                      |
+| path variables                        | whole-segment path parameters, valued from `@opExample`, `@example`, or generated                                                                                                                                                                                                                                |
+| query parameters                      | `@query` parameters, and a query string written literally in the route (`/items?fixed=true{&param}`); optional ones are listed disabled unless an example sets them                                                                                                                                              |
+| headers                               | `@header` parameters; `Content-Type` from the body; `Accept` from the first response body                                                                                                                                                                                                                        |
+| cookies                               | `@cookie` parameters and cookie API keys, as one `Cookie` header                                                                                                                                                                                                                                                 |
+| body                                  | `@opExample`, then the model's `@example`, then generated at the request's visibility                                                                                                                                                                                                                            |
+| auth                                  | `resolveAuthentication`: collection from the service namespace, folder from the interface, request where the operation differs                                                                                                                                                                                   |
+| credential variables                  | each security scheme used, named for the scheme id `@typespec/openapi3` publishes, first letter lowered (`ApiKeyAuth_` is `apiKeyAuth_`)                                                                                                                                                                         |
+| chained id variables                  | the chaining convention: empty where an operation creates the resource, and the value the request would otherwise have carried where none does                                                                                                                                                                   |
+| order                                 | the chaining convention, then declaration order                                                                                                                                                                                                                                                                  |
+| GraphQL requests                      | typespec-http-graphql's `graphqlRequestsOf`, read from the copy of it the compiler ran: a `GraphQL` folder of the creates its operations need, then one request per root field, its document typespec-http-graphql's, its variables the values the REST request for its operation sends, its auth that request's |
+| assertions                            | the declared statuses; each response's media type, required headers, empty body or draft-07 schema, from `@typespec/openapi3`'s document built in-process; the chaining convention's roles; an `@opExample` body for update assertions                                                                           |
 
 ### Generated values
 
@@ -203,3 +206,25 @@ the collection without schema checks.
 Several services resolve to one output file, so none of them is written.
 
 Remedy: put `{service-name}` in `output-file`.
+
+### `graphql-emitted-later`
+
+`typespec-http-graphql` is listed after this emitter in `emit:`. Emitters run in that order, and the
+requests are what typespec-http-graphql recorded as it emitted, so when the collection is written
+there is nothing to read. The collection holds no GraphQL request.
+
+Remedy: list `typespec-http-graphql` before `typespec-postman` in `emit:`.
+
+### `graphql-requests-unavailable`
+
+The typespec-http-graphql this compile runs publishes no `graphqlRequestsOf`: a version before
+0.3.0. The collection holds no GraphQL request.
+
+Remedy: install typespec-http-graphql 0.3.0 or later.
+
+### `graphql-url-invalid`
+
+`graphql-url` names no host this emitter can write: neither a `{{variable}}` nor an `http` or `https`
+origin. The GraphQL requests go to `{{baseUrl}}/graphql`.
+
+Remedy: give `graphql-url` a host, as `{{baseUrl}}/api/graphql` or `https://api.example.com/graphql`.

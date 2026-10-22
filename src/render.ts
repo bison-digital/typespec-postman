@@ -179,8 +179,9 @@ function renderParam(param: PlanParam): object {
 
 function renderUrl(url: PlanUrl): object {
 	const enabled = url.query.filter((param) => !param.disabled);
+	const host = url.host ?? `{{${BASE_URL_VARIABLE}}}`;
 	const raw =
-		`{{${BASE_URL_VARIABLE}}}` +
+		host +
 		url.path.map((segment) => `/${segment}`).join("") +
 		(enabled.length === 0
 			? ""
@@ -188,7 +189,7 @@ function renderUrl(url: PlanUrl): object {
 		(url.hash === undefined ? "" : `#${url.hash}`);
 	return {
 		raw,
-		host: [`{{${BASE_URL_VARIABLE}}}`],
+		host: [host],
 		path: url.path,
 		...(url.query.length === 0 ? {} : { query: url.query.map(renderParam) }),
 		...(url.variables.length === 0 ? {} : { variable: url.variables.map(renderParam) }),
@@ -222,6 +223,8 @@ function renderBody(body: PlanBody): object {
 			};
 		case "file":
 			return { mode: "file", file: { src: null } };
+		case "graphql":
+			return { mode: "graphql", graphql: { query: body.query, variables: body.variables } };
 	}
 }
 
@@ -400,6 +403,25 @@ function renderAssertion(assertion: PlanAssertion): AssertionScript {
 				`const schemas = ${JSON.stringify(byStatus)};`,
 				"pm.expect(schemas).to.have.property(String(pm.response.code));",
 				`pm.response.to.have.jsonSchema(schemas[String(pm.response.code)], ${options});`,
+			]);
+		}
+		/**
+		 * **A GraphQL server answers 200 for an answer it could not give**: an error is in the body's
+		 * `errors`, a 404 is the field's `null`, and a mutation's declared refusal is a member of its
+		 * result union. Each is checked, so a failure is not read as a pass.
+		 */
+		case "graphql-success": {
+			const field = JSON.stringify(assertion.field);
+			return test(`GraphQL answers ${assertion.field}`, [
+				"pm.response.to.have.status(200);",
+				"const body = pm.response.json();",
+				'pm.expect(body.errors, "errors").to.be.undefined;',
+				`pm.expect(body.data[${field}], ${field}).to.not.be.null;`,
+				...(assertion.typenames === undefined
+					? []
+					: [
+							`pm.expect(${JSON.stringify(assertion.typenames)}).to.include(body.data[${field}].__typename);`,
+						]),
 			]);
 		}
 	}

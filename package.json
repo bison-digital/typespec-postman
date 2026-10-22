@@ -1,6 +1,6 @@
 {
 	"name": "typespec-postman",
-	"version": "0.5.1",
+	"version": "0.6.0",
 	"description": "TypeSpec emitter: generate a Postman Collection v2.1 from an HTTP service definition, with requests, auth, chained ids and assertions derived from the spec.",
 	"keywords": [
 		"api-testing",
@@ -67,6 +67,8 @@
 		"ajv-draft-04": "1.0.0",
 		"ajv-formats": "3.0.1",
 		"ajv6": "npm:ajv@6.12.5",
+		"graphql": "17.0.2",
+		"graphql-yoga": "5.24.4",
 		"hono": "^4.13.7",
 		"openapi-to-postmanv2": "6.3.3",
 		"oxfmt": "^0.67.0",
@@ -74,6 +76,7 @@
 		"secure-json-parse": "4.1.1",
 		"typescript": "~7.0.2",
 		"typespec-hono": "0.31.0",
+		"typespec-http-graphql": "0.3.0",
 		"typespec-postman": "link:.",
 		"vitest": "^5.0.0",
 		"zod": "^4.6.2"
@@ -82,10 +85,14 @@
 		"@typespec/compiler": "^1.16.0",
 		"@typespec/http": "^1.16.0",
 		"@typespec/openapi3": "^1.16.0",
-		"@typespec/versioning": "^0.86.0 || ^0.87.0"
+		"@typespec/versioning": "^0.86.0 || ^0.87.0",
+		"typespec-http-graphql": "^0.3.0"
 	},
 	"peerDependenciesMeta": {
 		"@typespec/versioning": {
+			"optional": true
+		},
+		"typespec-http-graphql": {
 			"optional": true
 		}
 	},

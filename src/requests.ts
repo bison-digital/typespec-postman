@@ -40,6 +40,21 @@ export interface DerivedRequest {
 	readonly sent:
 		| { readonly value: JsonValue; readonly fromExample: ReadonlySet<string> }
 		| undefined;
+	/**
+	 * **What the request sends, as values rather than text**, for a request of another protocol
+	 * calling the same operation to send the same: each parameter it sends, by wire name, and, for a
+	 * path parameter a created id fills, the collection variable that stands in for it.
+	 */
+	readonly values: {
+		readonly parameters: Readonly<Record<string, JsonValue>>;
+		readonly chained: ReadonlyMap<string, Chained>;
+	};
+}
+
+/** A parameter a created id fills: the collection variable, and whether the id is a number. */
+export interface Chained {
+	readonly variable: string;
+	readonly numeric: boolean;
 }
 
 const JSON_MEDIA = /^application\/(?:[\w.+-]+\+)?json$/i;
@@ -80,11 +95,27 @@ export function deriveRequest(
 	};
 
 	const url = deriveUrl(program, operation, chains, valueFor);
+	const parameters: Record<string, JsonValue> = {};
+	const chained = new Map<string, Chained>();
+	for (const parameter of operation.parameters.parameters) {
+		if (parameter.type !== "path") continue;
+		const resource = chains.consumed(operation, parameter.name);
+		if (resource === undefined) {
+			parameters[parameter.name] = valueFor(parameter).value;
+			continue;
+		}
+		parameters[parameter.name] = `{{${resource.variable}}}`;
+		chained.set(parameter.name, {
+			variable: resource.variable,
+			numeric: resource.keyType === "number",
+		});
+	}
 	const query: PlanParam[] = [...url.query];
 	for (const parameter of operation.parameters.parameters) {
 		if (parameter.type !== "query") continue;
 		const { value, fromExample } = valueFor(parameter);
 		const disabled = parameter.param.optional && !fromExample;
+		if (!disabled) parameters[parameter.name] = value;
 		for (const [key, text] of expandQuery(
 			parameter.name,
 			parameter.explode ?? false,
@@ -102,6 +133,7 @@ export function deriveRequest(
 		if (parameter.type === "header") {
 			const { value, fromExample } = valueFor(parameter);
 			const disabled = parameter.param.optional && !fromExample;
+			if (!disabled) parameters[parameter.name] = value;
 			const text =
 				parameter.name.toLowerCase() === "content-type" && body.contentType !== undefined
 					? body.contentType
@@ -115,8 +147,10 @@ export function deriveRequest(
 			headers.push(param(parameter.name, text, disabled, getDoc(program, parameter.param)));
 		} else if (parameter.type === "cookie") {
 			const { value } = valueFor(parameter);
-			if (!parameter.param.optional)
+			if (!parameter.param.optional) {
 				cookies.push(`${parameter.name}=${encodeValue(String(value), false)}`);
+				parameters[parameter.name] = value;
+			}
 		}
 	}
 	if (
@@ -142,6 +176,7 @@ export function deriveRequest(
 		headers,
 		body: body.body,
 		sent: body.sent,
+		values: { parameters, chained },
 	};
 }
 
