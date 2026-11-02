@@ -54,9 +54,11 @@ pnpm add -D typespec-postman @typespec/compiler @typespec/http @typespec/openapi
   `graphql`-mode request for each `@queryField` and `@mutationField` it served, at
   `{{baseUrl}}/graphql` (`graphql-url`). Each document is the one typespec-http-graphql writes for
   the field, so it matches the schema it serves; each request's variables are the values the REST
-  request for its operation sends, and its auth is that request's. The folder starts with copies of
-  the creates its reads need, and asserts each answer has no `errors`, a value, and, for a mutation,
-  a success member. List `typespec-http-graphql` before this emitter in `emit:`.
+  request for its operation sends, and its auth is that request's. The folder creates each resource
+  its requests use once: by the create mutation, which reads the new id out of its answer into the
+  variable the REST create sets, where that answer carries it, and by a copy of the REST create where
+  it does not. It asserts each answer has no `errors`, a value, and, for a mutation, a success member.
+  List `typespec-http-graphql` before this emitter in `emit:`.
 
 The file is Postman Collection Format v2.1, byte-identical for identical input.
 

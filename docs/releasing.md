@@ -36,6 +36,22 @@ cmp postman_collection.json <this package>/example/postman_collection.json
 `cmp` exiting 0 is the proof: the installed package, resolved from a registry, writes the committed
 worked example byte for byte.
 
+**A GraphQL surface is rehearsed as well**, because the worked example has none. Publish the
+typespec-http-graphql the release names to the same registry, install it into the clean room beside
+`typespec-hono`, compile a spec declaring a create mutation, and run its collection with the Postman CLI
+against the generated server, Yoga mounted beside the REST routes, refusing a duplicate of a unique
+field. Every GraphQL request has to pass: a folder that creates one resource twice from one example
+fails there.
+
+Rehearsed for 0.8.0 with typespec-http-graphql 0.4.1 and typespec-hono 0.31.1, one
+`typespec-http-zod@0.34.1` under both: the worked example `cmp` 0; a bookshop whose create answers the
+book or a problem, every GraphQL document valid, the run against a server refusing a duplicate title
+exit 0, 18 assertions; the same bookshop with no delete warned `graphql-create-repeated`, its run
+failing at `createBook` as warned; 36 collections of this package's fixtures compiled by 0.7.0 from npm
+and by the rehearsal 0.8.0 without typespec-http-graphql emitted, the same byte for byte; Postman's
+`collection migrate` and `collection lint` over the GraphQL collection clean. With 0.7.0 from npm the
+same run fails at `mutation createBook`.
+
 ## Confirm the Postman app import
 
 `test/reference/lint.test.ts` already runs Postman's own `collection migrate` and `collection lint`

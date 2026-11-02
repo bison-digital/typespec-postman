@@ -39,12 +39,36 @@ The `GraphQL` folder holds one request per root field, each in `graphql` mode wi
 typespec-http-graphql writes for it, so it matches the schema the server builds. Its variables are the
 values the REST request for the same operation sends, created ids included as their collection
 variables, and any argument the field requires that the REST request leaves out, as a shared route's
-query parameter can be. Its auth is that request's. The folder first creates what its reads need, by
-copies of the REST creates, so a read runs against data that exists, then runs each request after
-what creates what it uses and each delete after every other use of what it deletes. The REST folders
-each run as a whole and may have to give such an order up (`order-cycle`); the GraphQL folder is flat
-and keeps it. Each request asserts a 200, no `errors`, a value for its field and, for a mutation, one
-of its success members, so a declared refusal is not read as a pass.
+query parameter can be. Its auth is that request's.
+
+The folder creates each resource its requests use once, so a read runs against data that exists:
+
+- **By its create mutation**, where the mutation's answer carries the created id, as it does when the
+  REST create answers the resource. The mutation's script reads the id out of the answer, at the path
+  typespec-http-graphql gives for it, alias included, into the collection variable the REST create
+  sets. One success member carrying it is enough, as for the REST create: an answer that is a member
+  carrying none, a 202 that answers only a `Location`, fails the script's test. The script unsets the
+  variable first, so a failed create leaves no id of the REST folders' for the requests after it. A
+  create answering two resources, a book or the import job making it, captures nothing, since a path
+  cannot say which resource the id is of.
+- **By a copy of the REST create** for every other resource a request uses. A create that answers
+  only a `Location`, or a body that is not the resource, gives GraphQL nothing to read the id from,
+  because a GraphQL answer has no headers. Where such a create is also a mutation in the folder, the
+  folder runs both and warns, `graphql-create-duplicated`.
+
+**The folder's creates send the examples the REST creates sent.** The REST folders delete what they
+create after its other uses, so a server holding a field unique accepts the second by the time the
+GraphQL folder runs. A resource no request deletes is still stored, and so is the one each create but
+the last made, where a resource has more than one, since the delete removes only the last; a create
+of either in the GraphQL folder, a copy or a mutation, is warned, `graphql-create-repeated`. The
+GraphQL folder's own creates stay stored unless a delete mutation follows them, so a second run
+against the same server repeats its examples: run the collection against a server set back between
+runs.
+
+Each request runs after what creates what it uses, and each delete after every other use of what it
+deletes. The REST folders each run as a whole and may have to give such an order up (`order-cycle`);
+the GraphQL folder is flat and keeps it. Each request asserts a 200, no `errors`, a value for its
+field and, for a mutation, one of its success members, so a declared refusal is not read as a pass.
 
 `graphql-url` is where the server mounts its GraphQL endpoint, `{{baseUrl}}/graphql` unless set, a
 trailing slash kept as written. Set `services.<name>.graphql-url` where services mount theirs apart.

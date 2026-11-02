@@ -45,13 +45,34 @@ jobs:
       # **`--frozen-lockfile` exits 0 on a dangling link.** While the corpus judge needs an unpublished
       # `typespec-hono`, `pnpm-workspace.yaml` redirects it to `link:../typespec-hono`. A release
       # checkout has no sibling on disk: pnpm installs the dangling symlink, reports success, and the
-      # failure surfaces later as an import error that names the module but not the cause.
+      # failure surfaces later as an import error that names the module but not the cause. The same
+      # holds for a dependency package.json names by a path, as a sibling's unreleased build is.
       - name: Refuse to publish against a locally-linked dependency
         run: |
           if grep -qE '^\s+typespec-[a-z-]+:\s*"?(link|file):' pnpm-workspace.yaml; then
             echo "::error::pnpm-workspace.yaml still overrides a first-party package to a local path."
             echo "::error::Remove the 'overrides' block and re-run 'pnpm install' so the lockfile"
             echo "::error::resolves it from the registry, then re-tag."
+            exit 1
+          fi
+          # A dependency the lockfile resolves to a local path, however package.json spells it
+          # (`link:`, `file:`, a bare `../`), but the package's own `link:` to itself.
+          linked=$(node -e '
+            const text = require("node:fs").readFileSync("pnpm-lock.yaml", "utf8");
+            const importers = (text.split(/^importers:$/m)[1] ?? "").split(/^\S/m)[0];
+            let name = "";
+            const found = [];
+            for (const line of importers.split("\n")) {
+              const key = /^ {6}(\S.*):$/.exec(line);
+              if (key) name = key[1];
+              const version = /^ {8}version: \x27?((?:link|file):[^\x27]*)\x27?$/.exec(line);
+              if (version && version[1] !== "link:" && version[1] !== "link:.") found.push(`${name}: ${version[1]}`);
+            }
+            console.log(found.join(", "));
+          ')
+          if [ -n "$linked" ]; then
+            echo "::error::pnpm-lock.yaml resolves a dependency to a local path: $linked"
+            echo "::error::Name its published version in package.json, re-run 'pnpm install', then re-tag."
             exit 1
           fi
 

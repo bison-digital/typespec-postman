@@ -180,6 +180,19 @@ export type PlanAssertion =
 			readonly kind: "graphql-success";
 			readonly field: string;
 			readonly typenames: readonly string[] | undefined;
+	  }
+	/**
+	 * The key a create mutation's answer carries, set as the variable the REST create sets: read at
+	 * the path below `data`, alias included, typespec-http-graphql gives for the success member the
+	 * answer is.
+	 */
+	| {
+			readonly kind: "graphql-captures";
+			readonly key: string;
+			readonly type: "string" | "number";
+			readonly variable: string;
+			/** The key's path below `data` for each success member, `null` where it holds none. */
+			readonly paths: Readonly<Record<string, readonly string[] | null>>;
 	  };
 
 export type StatusMatch = number | { readonly start: number; readonly end: number };

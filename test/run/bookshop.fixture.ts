@@ -43,14 +43,33 @@ interface Book {
 
 const notFound = (title: string) => ({ status: 404, body: { title } });
 
+/**
+ * **What a correct server may refuse beside what the spec says**: `unique` holds an author's name
+ * unique among the authors stored, and a book's title among its author's books, answering a second
+ * create of either with the declared `Invalid`. No mutant: a collection must run green against it,
+ * which it does only if no folder creates one resource twice from one example, and the REST folders
+ * delete what they create before the GraphQL folder sends the same examples again.
+ */
+export interface ServerRules {
+	readonly unique?: boolean;
+}
+
 export function bookshopHandlers(
 	mutant: Mutant,
+	rules: ServerRules = {},
 ): Record<string, (ctx: unknown, input: Input) => unknown> {
 	const authors = new Map<string, Author>();
 	const books = new Map<string, Map<string, Book>>();
+	const taken = (title: string) => ({ status: 400, body: { title } });
 	return {
 		health: () => ({ status: 200, body: { status: "ok" } }),
 		Authors_create: (_ctx, input) => {
+			if (
+				rules.unique === true &&
+				[...authors.values()].some((author) => author.name === input["name"])
+			) {
+				return taken(`An author named ${String(input["name"])} exists`);
+			}
 			const author: Author = { id: randomUUID(), name: String(input["name"]) };
 			if (typeof input["bio"] === "string") author.bio = input["bio"];
 			authors.set(author.id, author);
@@ -90,6 +109,12 @@ export function bookshopHandlers(
 			if (mutant === "create-book-misses") return notFound("No such author");
 			const shelf = books.get(String(input["authorId"]));
 			if (shelf === undefined) return notFound("No such author");
+			if (
+				rules.unique === true &&
+				[...shelf.values()].some((book) => book.title === input["title"])
+			) {
+				return taken(`A book titled ${String(input["title"])} exists`);
+			}
 			const book: Book = {
 				id: randomUUID(),
 				title: String(input["title"]),

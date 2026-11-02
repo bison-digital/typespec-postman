@@ -1,4 +1,4 @@
-import { rmSync } from "node:fs";
+import { readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { compile, NodeHost } from "@typespec/compiler";
@@ -72,15 +72,36 @@ describe("a collection for a spec with a GraphQL surface", () => {
 		expect(names.slice(-2)).toEqual(["GraphQL", "Error cases"]);
 	});
 
-	it("starts the folder with the creates its reads need, then a request per root field, in REST order", () => {
+	it("creates each resource once, by its create mutation where that names the id, then each use after it", () => {
+		// `createAuthor` creates the author and sets `authorId`; no mutation creates a book, so a copy of
+		// its REST create does, after the mutation that sets the `authorId` it sends.
 		expect(folderNamed(compiled.collection(), "GraphQL").item?.map((item) => item.name)).toEqual([
-			"create (Authors)",
-			"create (Books)",
 			"mutation createAuthor",
 			"query author",
+			"create (Books)",
 			"query book",
 			"mutation deleteAuthor",
 		]);
+		expect(codes(compiled)).not.toContain("typespec-postman/graphql-create-duplicated");
+	});
+
+	it("reads the id a create mutation's answer carries into the variable the REST create sets", () => {
+		const collection = compiled.collection();
+		const mutation = scriptOf(requestNamed(collection, "mutation createAuthor", "GraphQL"));
+		expect(mutation.slice(mutation.indexOf('pm.test("Response has an id", function () {'))).toEqual(
+			[
+				'pm.test("Response has an id", function () {',
+				'    pm.collectionVariables.unset("authorId");',
+				"    const data = pm.response.json().data;",
+				'    pm.expect(data, "data").to.be.an("object");',
+				'    const id = data["createAuthor"]["id"];',
+				'    pm.expect(id).to.be.a("string");',
+				'    pm.collectionVariables.set("authorId", id);',
+				"});",
+			],
+		);
+		const rest = scriptOf(requestNamed(collection, "create", "Authors")).join("\n");
+		expect(rest).toContain('pm.collectionVariables.set("authorId", pm.response.json()["id"]);');
 	});
 
 	it("posts to {{baseUrl}}/graphql in graphql mode, the document typespec-http-graphql wrote", () => {
@@ -151,13 +172,139 @@ describe("a collection for a spec with a GraphQL surface", () => {
 		);
 	});
 
-	it("copies the creates into the folder, each setting the id the requests after it read", () => {
+	it("copies a create no mutation stands in for, setting the id the requests after it read", () => {
 		const collection = compiled.collection();
-		const original = requestNamed(collection, "create", "Authors");
-		const copy = requestNamed(collection, "create (Authors)", "GraphQL");
+		const original = requestNamed(collection, "create", "Books");
+		const copy = requestNamed(collection, "create (Books)", "GraphQL");
 		expect(copy.request).toEqual(original.request);
 		expect(scriptOf(copy)).toEqual(scriptOf(original));
 		expect(copy.id).not.toBe(original.id);
+	});
+});
+
+describe("a create mutation whose answer names nothing it created", () => {
+	let located: Compiled;
+	beforeAll(async () => {
+		located = await compileFixture(here, "located", { graphql: "before", outName: "located" });
+	}, 300_000);
+
+	it("leaves the copy its uses read the id from, and warns that the folder creates it twice", () => {
+		expect(folderNamed(located.collection(), "GraphQL").item?.map((item) => item.name)).toEqual([
+			"create (Shelves)",
+			"mutation createShelf",
+			"query shelf",
+			"mutation createBook",
+			"query book",
+			"mutation createReview",
+			"query review",
+		]);
+		const warnings = located.diagnostics.filter(
+			(diagnostic) => diagnostic.code === "typespec-postman/graphql-create-duplicated",
+		);
+		expect(warnings.map((warning) => warning.message)).toEqual([
+			"The GraphQL folder creates the shelf twice from one example: 'createShelf' answers no id the requests that use it could read, so they read it from a copy of 'Shelves.create' run before it. A server that refuses a duplicate refuses the second. Answer the created shelf in the create's body.",
+		]);
+	});
+
+	it("still reads the id a mutation's answer carries beside it", () => {
+		const script = scriptOf(requestNamed(located.collection(), "mutation createBook", "GraphQL"));
+		expect(script).toContain('    pm.collectionVariables.set("bookId", id);');
+		const shelf = scriptOf(requestNamed(located.collection(), "mutation createShelf", "GraphQL"));
+		expect(shelf.join("\n")).not.toContain("collectionVariables.set");
+	});
+
+	/**
+	 * **One success member naming the id is enough**, as it is for the REST create, which reads the
+	 * key from whichever 2xx body it is answered and fails on the 202 that carries none.
+	 */
+	it("captures from the member that names the id, and fails the one that names none", () => {
+		const script = scriptOf(requestNamed(located.collection(), "mutation createReview", "GraphQL"));
+		expect(script.slice(script.indexOf('pm.test("Response has an id", function () {'))).toEqual([
+			'pm.test("Response has an id", function () {',
+			'    pm.collectionVariables.unset("reviewId");',
+			"    const data = pm.response.json().data;",
+			'    pm.expect(data, "data").to.be.an("object");',
+			'    const path = {"Review":["createReview","id"],"CreateReviewAccepted":null}[data["createReview"].__typename];',
+			'    pm.expect(path, "where this member holds the id").to.be.an("array");',
+			"    const id = path.reduce((value, key) => value[key], data);",
+			'    pm.expect(id).to.be.a("string");',
+			'    pm.collectionVariables.set("reviewId", id);',
+			"});",
+		]);
+		const rest = scriptOf(requestNamed(located.collection(), "create", "Reviews")).join("\n");
+		expect(rest).toContain('pm.collectionVariables.set("reviewId", pm.response.json()["id"]);');
+		const duplicated = located.diagnostics.filter(
+			(diagnostic) => diagnostic.code === "typespec-postman/graphql-create-duplicated",
+		);
+		expect(duplicated).toHaveLength(1);
+	});
+});
+
+/**
+ * **A create answering two resources**, a book or the import job making it, each with an `id`, and
+ * **a resource with two creates and one delete**, which leaves the first create's shelf stored.
+ */
+describe("creates the folder cannot stand a mutation in for, or that the REST folders keep", () => {
+	let creates: Compiled;
+	beforeAll(async () => {
+		creates = await compileFixture(here, "creates", { graphql: "before", outName: "creates" });
+	}, 300_000);
+	const messagesOf = (code: string) =>
+		creates.diagnostics
+			.filter((diagnostic) => diagnostic.code === `typespec-postman/${code}`)
+			.map((diagnostic) => diagnostic.message);
+
+	it("captures nothing from a create answering two resources, whose id a path cannot say is a book's", () => {
+		const mutation = scriptOf(requestNamed(creates.collection(), "mutation createBook", "GraphQL"));
+		expect(mutation.join("\n")).not.toContain("collectionVariables.set");
+		expect(folderNamed(creates.collection(), "GraphQL").item?.map((item) => item.name)).toContain(
+			"create (Books)",
+		);
+		expect(messagesOf("graphql-create-duplicated")).toEqual([
+			"The GraphQL folder sends the example of 'Books.create' twice: 'createBook' answers more than one resource, so no one path in its answer names the id of what it created, and the requests that use it read the id from a copy of the create run before it. A server that refuses a duplicate refuses the second. Answer one resource from the create.",
+		]);
+	});
+
+	it("still captures from each create of a resource that answers it alone", () => {
+		for (const field of ["createShelf", "importShelf"]) {
+			const script = scriptOf(requestNamed(creates.collection(), `mutation ${field}`, "GraphQL"));
+			expect(script, field).toContain('    pm.collectionVariables.set("shelfId", id);');
+		}
+	});
+
+	it("warns of each resource the REST folders leave stored: one no request deletes, and all but the last create of one", () => {
+		expect(messagesOf("graphql-create-repeated")).toEqual([
+			"The GraphQL folder creates an import job from the example 'Books.create' sends in the REST folders, and no request deletes one, so the first is still stored: a server that refuses a duplicate refuses the second. Declare a delete for it, which the REST folders run after its other uses.",
+			"The GraphQL folder creates a shelf from the example 'Shelves.create' sends in the REST folders, which leave the one it made there stored: 'Shelves.importShelf' creates one after it, and the delete removes only the last. A server that refuses a duplicate refuses the second.",
+		]);
+	});
+});
+
+/**
+ * **The GraphQL folder runs after the REST folders**, and its creates send the examples theirs sent,
+ * so a server holding a field unique accepts one only once the REST folders have deleted what they
+ * created, which they do last. Where no request deletes it, the second is refused.
+ */
+describe("a create the GraphQL folder sends again where no request deletes what it creates", () => {
+	const repeated = (diagnostics: Compiled["diagnostics"]) =>
+		diagnostics
+			.filter((diagnostic) => diagnostic.code === "typespec-postman/graphql-create-repeated")
+			.map((diagnostic) => diagnostic.message);
+
+	it("is warned for a copy and for a mutation, once each, and not where a delete is declared", async () => {
+		const located = await compileFixture(here, "located", {
+			graphql: "before",
+			outName: "located-repeated",
+		});
+		// Shelves are copied and created by their mutation, from one operation; books and reviews are
+		// deleted.
+		expect(repeated(located.diagnostics)).toEqual([
+			"The GraphQL folder creates a shelf from the example 'Shelves.create' sends in the REST folders, and no request deletes one, so the first is still stored: a server that refuses a duplicate refuses the second. Declare a delete for it, which the REST folders run after its other uses.",
+		]);
+		// The book copy, which no request deletes; the author, created by its mutation, is deleted.
+		expect(repeated(compiled.diagnostics)).toEqual([
+			"The GraphQL folder creates a book from the example 'Books.create' sends in the REST folders, and no request deletes one, so the first is still stored: a server that refuses a duplicate refuses the second. Declare a delete for it, which the REST folders run after its other uses.",
+		]);
 	});
 });
 
@@ -260,6 +407,38 @@ describe("a typespec-http-graphql that publishes no requests", () => {
 			(diagnostic) => diagnostic.code === "typespec-postman/graphql-requests-unavailable",
 		);
 		expect(warning?.message).toContain("(version 0.2.1)");
+	});
+});
+
+describe("a typespec-http-graphql whose requests say nothing of where an answer holds a value", () => {
+	let diagnostics: readonly { readonly code: string; readonly message: string }[];
+	let outDir: string;
+	beforeAll(async () => {
+		outDir = join(here, ".out", "older-0.3");
+		rmSync(outDir, { recursive: true, force: true });
+		const program = await compile(NodeHost, join(here, "rest.tsp"), {
+			outputDir: outDir,
+			emit: [join(here, "older-0.3"), "typespec-postman"],
+			options: { "typespec-postman": { "emitter-output-dir": outDir } },
+		});
+		diagnostics = program.diagnostics.map((diagnostic) => ({
+			code: diagnostic.code,
+			message: diagnostic.message,
+		}));
+	}, 300_000);
+
+	it("is warned, naming its version, and the collection holds no GraphQL request", () => {
+		expect(
+			diagnostics
+				.filter((diagnostic) => diagnostic.code === "typespec-postman/graphql-requests-unavailable")
+				.map((diagnostic) => diagnostic.message),
+		).toEqual([
+			"The 'typespec-http-graphql' this compile runs publishes no 'graphqlRequestsOf' that says where an answer holds a value (version 0.3.1), so the collection holds no GraphQL request. Install typespec-http-graphql 0.4.1 or later.",
+		]);
+		const collection = JSON.parse(
+			readFileSync(join(outDir, "postman_collection.json"), "utf8"),
+		) as { readonly item: readonly { readonly name: string }[] };
+		expect(collection.item.map((item) => item.name)).not.toContain("GraphQL");
 	});
 });
 

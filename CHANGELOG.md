@@ -6,6 +6,50 @@ All notable changes to this package are documented here. The format follows
 generated collection counts as API: a change to what it contains for an unchanged spec is a minor
 version.
 
+## [0.8.0] - 2026-11-01
+
+A minor, by this file's own rule: a collection's GraphQL folder changes for an unchanged spec. A spec
+without a GraphQL surface emits what 0.7.0 emits.
+
+### Fixed
+
+- **The GraphQL folder creates each resource once.** It ran a copy of every REST create its reads
+  needed and then the create mutation for the same operation, sending one example twice, so a
+  server holding a field unique refused the mutation as a duplicate and its test failed on a correct
+  server. A create mutation now stands in for the copy where its answer carries the id it created,
+  as it does when the REST create answers the resource: its script reads the id out of the answer,
+  at the path typespec-http-graphql gives for it, into the variable the REST create sets.
+- **A copy runs after what sets the id it sends.** The copies ran first, in REST order, before any
+  mutation; a copy now takes its place in the folder's own order, after the create mutation of the
+  resource it uses.
+- **One success member carrying the id is enough for the mutation to stand in**, as it is for the REST
+  create, which reads the key from whichever 2xx body it is answered: a create answering the resource
+  or, accepted for later, only a `Location`, is captured from the member that carries it, and an
+  answer that is the other member fails the script's test. A create answering two resources captures
+  nothing, and is copied and warned `graphql-create-duplicated`, since a path cannot say which
+  resource an id is of.
+- **A capture unsets its variable before reading.** The REST folders set it first, so a create mutation
+  that failed left their id in place, and a read after it could pass against what they had created.
+
+### Added
+
+- **`graphql-create-repeated`**, a warning for a create in the GraphQL folder, a copy or a mutation,
+  of a resource the REST folders leave stored: one no request deletes, or one with more than one
+  create, of which the delete removes only what the last made. The folder runs after the REST
+  folders and sends the examples their creates sent, which a server holding a field unique accepts
+  only once those are deleted. Remedy: declare a delete for the resource.
+- **`graphql-create-duplicated`**, a warning for a create mutation whose answer names nothing it
+  created, beside a copy of the same create that the folder's other requests read the id from: the
+  one case where the folder still sends an example twice. A create that answers only a `Location`
+  gives GraphQL no id to read, since a GraphQL answer has no headers. Remedy: answer the created
+  resource in the create's body.
+
+### Changed
+
+- `typespec-http-graphql` `^0.4.1` as the optional peer, the first 0.4 on npm: it writes documents the
+  schema accepts where a union's members share a field name with another type, and publishes
+  `resultPathsOf`, which the capture reads. A 0.3 copy is `graphql-requests-unavailable`.
+
 ## [0.7.0] - 2026-10-22
 
 A minor, by this file's own rule: a collection's GraphQL folder changes for an unchanged spec, its id

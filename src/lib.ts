@@ -161,7 +161,29 @@ const diagnostics = {
 	"graphql-requests-unavailable": {
 		severity: "warning",
 		messages: {
-			default: paramMessage`The 'typespec-http-graphql' this compile runs publishes no 'graphqlRequestsOf' (version ${"version"}), so the collection holds no GraphQL request. Install typespec-http-graphql 0.3.1 or later.`,
+			default: paramMessage`The 'typespec-http-graphql' this compile runs publishes no 'graphqlRequestsOf' that says where an answer holds a value (version ${"version"}), so the collection holds no GraphQL request. Install typespec-http-graphql 0.4.1 or later.`,
+		},
+	},
+	/**
+	 * A create mutation whose answer names nothing it created, beside a copy of the same REST create
+	 * that the requests using the resource read the id from: one example sent twice.
+	 */
+	"graphql-create-duplicated": {
+		severity: "warning",
+		messages: {
+			default: paramMessage`The GraphQL folder creates the ${"spoken"} twice from one example: '${"field"}' answers no id the requests that use it could read, so they read it from a copy of '${"operation"}' run before it. A server that refuses a duplicate refuses the second. Answer the created ${"spoken"} in the create's body.`,
+			resources: paramMessage`The GraphQL folder sends the example of '${"operation"}' twice: '${"field"}' answers more than one resource, so no one path in its answer names the id of what it created, and the requests that use it read the id from a copy of the create run before it. A server that refuses a duplicate refuses the second. Answer one resource from the create.`,
+		},
+	},
+	/**
+	 * **The GraphQL folder creates what the REST folders created, from the same example**, and no
+	 * request deletes it between them, so a server holding a field of it unique refuses the second.
+	 */
+	"graphql-create-repeated": {
+		severity: "warning",
+		messages: {
+			default: paramMessage`The GraphQL folder creates ${"resource"} from the example '${"operation"}' sends in the REST folders, and no request deletes one, so the first is still stored: a server that refuses a duplicate refuses the second. Declare a delete for it, which the REST folders run after its other uses.`,
+			kept: paramMessage`The GraphQL folder creates ${"resource"} from the example '${"operation"}' sends in the REST folders, which leave the one it made there stored: '${"last"}' creates one after it, and the delete removes only the last. A server that refuses a duplicate refuses the second.`,
 		},
 	},
 	"graphql-url-invalid": {
@@ -196,6 +218,14 @@ type Diagnostics = {
 	"schema-unavailable": { readonly default: CallableMessage<["service", "reason"]> };
 	"graphql-emitted-later": { readonly default: CallableMessage<["emitter"]> };
 	"graphql-requests-unavailable": { readonly default: CallableMessage<["version"]> };
+	"graphql-create-duplicated": {
+		readonly default: CallableMessage<["spoken", "field", "operation", "spoken"]>;
+		readonly resources: CallableMessage<["operation", "field"]>;
+	};
+	"graphql-create-repeated": {
+		readonly default: CallableMessage<["resource", "operation"]>;
+		readonly kept: CallableMessage<["resource", "operation", "last"]>;
+	};
 	"graphql-url-invalid": { readonly default: CallableMessage<["url", "fallback"]> };
 };
 

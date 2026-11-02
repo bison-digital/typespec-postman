@@ -406,6 +406,50 @@ function renderAssertion(assertion: PlanAssertion): AssertionScript {
 			]);
 		}
 		/**
+		 * **Set inside the test, unlike a REST create's**: a GraphQL error answers `data` as `null`, and
+		 * a read of it outside a test would stop the script rather than fail one assertion. Where every
+		 * success member holds the key at one path it is read there; otherwise the path is the one for
+		 * the member the answer is, and a member holding none, a refusal's or a 202's, fails.
+		 *
+		 * **The variable is unset first.** The REST folders set it before this folder runs, so a create
+		 * here that failed would leave their id in place, and a read after it could pass against what
+		 * they created rather than what this create did. Unset, nothing after it passes on an id this
+		 * create did not give.
+		 */
+		case "graphql-captures": {
+			const paths = Object.values(assertion.paths);
+			const [first] = paths;
+			const one =
+				first !== undefined &&
+				first !== null &&
+				paths.every((path) => JSON.stringify(path) === JSON.stringify(first));
+			const name = `Response has ${/^[aeiou]/i.test(assertion.key) ? "an" : "a"} ${assertion.key}`;
+			const read = [
+				`pm.collectionVariables.unset(${JSON.stringify(assertion.variable)});`,
+				"const data = pm.response.json().data;",
+				'pm.expect(data, "data").to.be.an("object");',
+			];
+			const capture = [
+				`pm.expect(id).to.be.a(${JSON.stringify(assertion.type)});`,
+				`pm.collectionVariables.set(${JSON.stringify(assertion.variable)}, id);`,
+			];
+			if (one) {
+				return test(name, [
+					...read,
+					`const id = data${first.map((key) => `[${JSON.stringify(key)}]`).join("")};`,
+					...capture,
+				]);
+			}
+			const field = paths.find((path) => path !== null)?.[0];
+			return test(name, [
+				...read,
+				`const path = ${JSON.stringify(assertion.paths)}[data[${JSON.stringify(field)}].__typename];`,
+				`pm.expect(path, ${JSON.stringify(`where this member holds the ${assertion.key}`)}).to.be.an("array");`,
+				"const id = path.reduce((value, key) => value[key], data);",
+				...capture,
+			]);
+		}
+		/**
 		 * **A GraphQL server answers 200 for an answer it could not give**: an error is in the body's
 		 * `errors`, a 404 is the field's `null`, and a mutation's declared refusal is a member of its
 		 * result union. Each is checked, so a failure is not read as a pass.

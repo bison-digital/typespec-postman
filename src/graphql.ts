@@ -25,6 +25,7 @@ export interface GraphQLRequest {
 	readonly description: string | undefined;
 	readonly document: string;
 	readonly successTypenames: readonly string[] | undefined;
+	readonly resultPathsOf: (wire: readonly string[]) => ReadonlyMap<string, readonly string[]>;
 	readonly variables: (input: {
 		readonly parameters: Readonly<Record<string, unknown>>;
 		readonly body?: unknown;
@@ -73,9 +74,21 @@ export function graphqlRequestsIn(
 		return undefined;
 	}
 	const services = read(program);
-	return services === undefined
-		? undefined
-		: new Map(services.map((service) => [service.service, service.requests]));
+	if (services === undefined) return undefined;
+	// 0.3 publishes requests without `resultPathsOf`, which a create mutation's capture reads.
+	if (
+		services.some((service) =>
+			service.requests.some((request) => typeof request.resultPathsOf !== "function"),
+		)
+	) {
+		reportDiagnostic(program, {
+			code: "graphql-requests-unavailable",
+			format: { version: ref?.metadata.version ?? "unknown" },
+			target: NoTarget,
+		});
+		return undefined;
+	}
+	return new Map(services.map((service) => [service.service, service.requests]));
 }
 
 /**

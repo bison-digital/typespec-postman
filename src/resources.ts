@@ -553,7 +553,7 @@ function describeResource(resource: Resource): string {
 }
 
 /** `Store.create`: an operation named with its container, so two `create`s can be told apart. */
-function qualifiedName(operation: HttpOperation | undefined): string {
+export function qualifiedName(operation: HttpOperation | undefined): string {
 	return operation === undefined ? "" : `${operation.container.name}.${operation.operation.name}`;
 }
 

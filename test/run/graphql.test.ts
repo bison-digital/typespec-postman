@@ -2,7 +2,7 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
-import { bookshopHandlers, type Mutant } from "./bookshop.fixture.js";
+import { bookshopHandlers, type Mutant, type ServerRules } from "./bookshop.fixture.js";
 import {
 	type Compiled,
 	compileSpec,
@@ -27,15 +27,15 @@ const here = fileURLToPath(new URL(".", import.meta.url));
 /**
  * Stated, as a reader counts them.
  *
- * Requests: the example's sixteen; then the GraphQL folder's copies of the two creates the GraphQL
- * reads need (authors' and books'), and one request for each of the ten root fields `graphql.tsp`
- * declares.
+ * Requests: the example's sixteen; then one request for each of the ten root fields `graphql.tsp`
+ * declares. No REST create is copied into the GraphQL folder: `createAuthor` and `createBook` each
+ * answer what they created, so each creates the resource its reads use.
  *
- * Assertions: the example's fifty-five; each copied create's five (its status, its body's
- * Content-Type and schema, its `location`, and that the id came back), and one per GraphQL request.
+ * Assertions: the example's fifty-five; one per GraphQL request; and, on each of the two create
+ * mutations, that its answer holds the id it then sets.
  */
-const EXPECTED_REQUESTS = 16 + 2 + 10;
-const EXPECTED_ASSERTIONS = 55 + 2 * 5 + 10;
+const EXPECTED_REQUESTS = 16 + 10;
+const EXPECTED_ASSERTIONS = 55 + 10 + 2;
 
 const CREDENTIALS = { bearerAuth: "token", shopKey: "key" } as const;
 
@@ -62,11 +62,12 @@ async function run(
 	name: string,
 	options: {
 		readonly mutant?: Mutant;
+		readonly rules?: ServerRules;
 		readonly collection?: (collection: PostmanCollection) => PostmanCollection;
 	} = {},
 ): Promise<RunResult> {
 	calls = [];
-	const handlers = bookshopHandlers(options.mutant ?? "none");
+	const handlers = bookshopHandlers(options.mutant ?? "none", options.rules);
 	const logged = Object.fromEntries(
 		Object.entries(handlers).map(([operationId, handler]) => [
 			operationId,
@@ -136,6 +137,16 @@ describe("a collection with GraphQL requests, run against REST and GraphQL serve
 		expect(result.executions.flatMap((execution) => execution.tests)).toHaveLength(
 			EXPECTED_ASSERTIONS,
 		);
+	});
+
+	it("runs green against a server holding a name unique, each resource created once in a folder", async () => {
+		const result = await run("unique", { rules: { unique: true } });
+		expect(failedTests(result), result.output).toEqual([]);
+		expect(result.exitCode, result.output).toBe(0);
+		const creates = calls.filter(
+			(call) => call.surface === "graphql" && call.operationId.endsWith("_create"),
+		);
+		expect(creates.map((call) => call.operationId)).toEqual(["Authors_create", "Books_create"]);
 	});
 
 	it("calls each GraphQL request's operation with the input its REST request sends", async () => {
