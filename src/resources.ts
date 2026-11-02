@@ -93,11 +93,19 @@ export interface Chains {
 }
 
 interface Shape {
-	/** Normalised segments: a literal, `{}` for a whole-segment simple parameter, or `?` otherwise. */
+	/**
+	 * Normalised segments: a literal, `{}` for a whole-segment simple parameter, or `?` otherwise. A
+	 * segment that is a simple parameter and a method on it, AIP-136's `{bookId}:archive`, is the two:
+	 * `{}` for the item, then `:archive`, so the method is under the item's route as a path segment
+	 * spelling of it would be.
+	 */
 	readonly normal: readonly string[];
 	/** The whole-segment simple parameter at each index, where there is one. */
 	readonly parameters: readonly (UriTemplateParameter | undefined)[];
 }
+
+/** The verb of AIP-136's custom method after its resource's id: `:archive`, `:batchGet`. */
+const CUSTOM_METHOD = /^:[A-Za-z][A-Za-z0-9]*$/;
 
 function shapeOf(operation: HttpOperation): Shape {
 	const { segments } = splitTemplate(operation.uriTemplate);
@@ -116,6 +124,16 @@ function shapeOf(operation: HttpOperation): Shape {
 		) {
 			normal.push("{}");
 			parameters.push(only);
+		} else if (
+			segment.length === 2 &&
+			only !== undefined &&
+			typeof only !== "string" &&
+			only.operator === undefined &&
+			typeof segment[1] === "string" &&
+			CUSTOM_METHOD.test(segment[1])
+		) {
+			normal.push("{}", segment[1]);
+			parameters.push(only, undefined);
 		} else {
 			normal.push("?");
 			parameters.push(undefined);
@@ -242,6 +260,80 @@ export function deriveChains(
 	};
 
 	/**
+	 * **Where each model is an item**, `<collection>/{}`: the route a read, replace or update answers
+	 * one at, where its last parameter carries the same kind of value as the model's key (rule 1 of
+	 * the README), and the route below the collection a create answers one at. A custom method's
+	 * `:verb` ends no collection, so implies none. Gathered from every operation before any resource
+	 * is declared, so it does not depend on the order they are in; `itemModels` is the same, by route.
+	 */
+	const itemRoutes = new Map<Model, Set<string>>();
+	const itemModels = new Map<string, Set<Model>>();
+	const addItemRoute = (type: Model, route: readonly string[]): void => {
+		const joined = route.join("/");
+		itemRoutes.set(type, (itemRoutes.get(type) ?? new Set<string>()).add(joined));
+		itemModels.set(joined, (itemModels.get(joined) ?? new Set<Model>()).add(type));
+	};
+	for (const operation of operations) {
+		const own = shape(operation);
+		if (own.normal.includes("?")) continue;
+		const last = own.normal.at(-1);
+		const item = ["get", "put", "patch"].includes(operation.verb) && last === "{}";
+		const create = operation.verb === "post" && last !== "{}" && !CUSTOM_METHOD.test(last ?? "");
+		if (!item && !create) continue;
+		for (const type of successBodies(metadata, operation)) {
+			if (type.kind !== "Model") continue;
+			const key = keyOf(program, type);
+			if (key === undefined) continue;
+			if (create) {
+				addItemRoute(type, [...own.normal, "{}"]);
+				continue;
+			}
+			const template = own.parameters.at(-1);
+			const parameter =
+				template === undefined ? undefined : pathParameter(operation, template.name);
+			if (parameter !== undefined && sameValueType(program, parameter.param, key)) {
+				addItemRoute(type, own.normal);
+			}
+		}
+	}
+
+	/**
+	 * **A POST under one of the model's own item routes acts on an existing one** rather than
+	 * creating one: AIP-136's custom method, spelled with a path segment, `POST /books/{bookId}/archive`
+	 * answering the book, or `POST /books/{bookId}/authors/{authorId}/credit`, under the book's item
+	 * route at any depth. Its route already names the resource's id, so it reads that id and claims
+	 * none, whatever it answers: a `201` clone's new book is another of the same resource, whose
+	 * variable the resource's own create already sets. Where the POST is under none of the model's
+	 * item routes, a path parameter named as the resource's variable says the same, unless another
+	 * model's item route ends at it: that parameter is the other model's id, as `{bookId}` in
+	 * `POST /entries/{bookId}/books` is an entry's. A POST under another model's item route,
+	 * `POST /authors/{authorId}/reviews`, is a create as any other.
+	 */
+	const actsOn = (operation: HttpOperation, model: Model): boolean => {
+		if (operation.verb !== "post") return false;
+		const { normal, parameters } = shape(operation);
+		const routes = itemRoutes.get(model);
+		const under = normal.some(
+			(segment, index) =>
+				segment === "{}" &&
+				index < normal.length - 1 &&
+				routes?.has(normal.slice(0, index + 1).join("/")) === true,
+		);
+		if (under) return true;
+		const key = keyOf(program, model);
+		const name = modelName(program, model);
+		if (key === undefined || name === undefined) return false;
+		const variable = camelCase(`${name} ${resolveEncodedName(program, key, "application/json")}`);
+		return parameters.some((template, index) => {
+			if (template?.name !== variable) return false;
+			const owners = itemModels.get(normal.slice(0, index + 1).join("/"));
+			if (owners !== undefined && [...owners].some((owner) => owner !== model)) return false;
+			const parameter = pathParameter(operation, template.name);
+			return parameter !== undefined && sameValueType(program, parameter.param, key);
+		});
+	};
+
+	/**
 	 * **A 201 that answers with a `Location`, and only a 201.** RFC 9110 15.3.2 asks a 201 for one and
 	 * 9.3.1 makes it the identifier of what was created, so it is the id's source where the body
 	 * carries none and a checkable claim where the body carries one. **No other status says that.** A
@@ -273,7 +365,14 @@ export function deriveChains(
 			if (parameter !== undefined && sameValueType(program, parameter.param, key))
 				normal = normal.slice(0, -1);
 		}
-		if (normal.length === 0 || normal.at(-1) === "{}" || normal.at(-1) === "?") return undefined;
+		const end = normal.at(-1);
+		/**
+		 * **A custom method's `:verb` is no collection**: AIP-136's `POST /books/{bookId}:export` acts on
+		 * the book whatever it answers, an operation's status as readily as the book, and creates none.
+		 */
+		if (end === undefined || end === "{}" || end === "?" || CUSTOM_METHOD.test(end)) {
+			return undefined;
+		}
 		return normal;
 	};
 
@@ -345,6 +444,7 @@ export function deriveChains(
 			if (body?.bodyKind !== "single") continue;
 			const model = responseType(metadata, body.type);
 			if (model.kind !== "Model") continue;
+			if (actsOn(operation, model)) continue;
 			if (!body.contentTypes.every((type) => JSON_MEDIA.test(type))) continue;
 			const key = keyOf(program, model);
 			if (key === undefined) continue;

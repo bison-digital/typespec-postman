@@ -6,7 +6,39 @@ All notable changes to this package are documented here. The format follows
 generated collection counts as API: a change to what it contains for an unchanged spec is a minor
 version.
 
-## [0.8.0] - 2026-11-01
+## [0.9.0] - 2026-11-03
+
+A minor, by this file's own rule: a collection changes for an unchanged spec that declares a method
+on an existing resource.
+
+### Fixed
+
+- **A `POST` under its model's own item route is a method on that resource, not a create.**
+  `POST /books/{bookId}/archive` answering the book was read as a create of a book under
+  `books/{bookId}/archive`. Declared after the book's create, it raised a false
+  `variable-collision`; declared before it, it took the `bookId` variable and its capture from the
+  real create, so the requests reading the book ran against an id nothing had set. Each model's item
+  routes are now gathered before any resource is declared, so the order of the operations no longer
+  decides it: such a `POST` reads `{{bookId}}` and claims nothing, under an item route at any depth
+  (`/books/{bookId}/authors/{authorId}/credit`) and whatever it answers, a `201` clone included. Where
+  the `POST` is under none of the model's item routes, a path parameter named as the resource's
+  variable says the same, unless another model's item route ends at that parameter, which makes it
+  the other model's id: a note created at `POST /entries/{noteId}/notes`, under the entries read at
+  `/entries/{noteId}`, is still a create. A `POST` under another model's item route,
+  `POST /authors/{authorId}/reviews`, still creates. An item route is a read, replace or update
+  whose last parameter carries the same kind of value as the model's key, as the chaining
+  convention's first rule says.
+- **AIP-136's own spelling of a custom method, `POST /books/{bookId}:archive`, sends the book's id.**
+  The id beside `:archive` in one segment was filled from the example, `bookId:archive`, rather than
+  from `{{bookId}}`; it is now read as the item and a method on it, as the path segment spelling is.
+  A method in that spelling creates nothing, whatever it answers, as in 0.8.0:
+  `POST /books/{bookId}:export` answering a job claims no variable.
+
+### Changed
+
+- `typespec-http-graphql` `^0.4.1 || ^0.5.0` as the optional peer.
+
+## [0.8.0] - 2026-11-02
 
 A minor, by this file's own rule: a collection's GraphQL folder changes for an unchanged spec. A spec
 without a GraphQL surface emits what 0.7.0 emits.

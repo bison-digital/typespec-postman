@@ -24,3 +24,4 @@ minimumReleaseAgeExclude:
   - typespec-http-graphql@0.3.0
   - typespec-http-graphql@0.3.1
   - typespec-http-graphql@0.4.1
+  - typespec-http-graphql@0.5.0

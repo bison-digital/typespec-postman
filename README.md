@@ -70,11 +70,21 @@ A created resource's id reaches the requests that need it without any annotation
    returning a named model whose key carries the same kind of value as that parameter, says what the
    resource is, what its key is and where its collection lives. The key is the `@key` property,
    otherwise `id`.
-2. **An operation answering that model with its key creates it.** A `POST` on the collection route
-   creates under it, whatever 2xx status it answers with - 200 and 202 carry a created resource as
-   readily as 201 does. A `PUT` whose route ends in the key creates at it, and only where it answers
-   **201**: RFC 9110 9.3.4 makes 201 the signal that a PUT created the resource rather than replacing
-   one that was there, and nothing else distinguishes the two.
+2. **An operation answering that model with its key creates it.** A `POST` creates under its route,
+   whatever 2xx status it answers with - 200 and 202 carry a created resource as readily as 201 does.
+   A `PUT` whose route ends in the key creates at it, and only where it answers **201**: RFC 9110
+   9.3.4 makes 201 the signal that a PUT created the resource rather than replacing one that was
+   there, and nothing else distinguishes the two.
+   - **A `POST` under one of that model's own item routes acts on an existing one**, AIP-136's custom
+     method: `POST /books/{bookId}/archive`, `POST /books/{bookId}:archive` or
+     `POST /books/{bookId}/authors/{authorId}/credit` answering the book reads `{{bookId}}` and claims
+     nothing, however the operations are ordered and whatever it answers. A `201` clone's new book is
+     another of the same resource, whose variable the create already sets. Where the `POST` is under
+     none of the model's item routes, a path parameter named as its variable, `{bookId}`, says the
+     same, unless another model's item route ends at it, which makes it that model's id. A `POST`
+     under another model's item route, as `POST /authors/{authorId}/reviews` is, creates. A custom
+     method spelled `:verb` creates nothing, whatever it answers: `POST /books/{bookId}:export`
+     answering a job sends `{{bookId}}` and claims no variable.
 3. **The id is read from the created resource, otherwise from `Location`.** A create that answers with
    the resource reads the key out of its body. One whose body wraps the resource, carries it beside
    something else, or is not the resource at all, reads it from the `Location` header, which RFC 9110

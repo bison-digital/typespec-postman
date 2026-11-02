@@ -52,6 +52,20 @@ and by the rehearsal 0.8.0 without typespec-http-graphql emitted, the same byte 
 `collection migrate` and `collection lint` over the GraphQL collection clean. With 0.7.0 from npm the
 same run fails at `mutation createBook`.
 
+Rehearsed for 0.9.0 with typespec-http-graphql 0.5.0 from the rehearsal registry, and again with
+0.4.1 from npm, the two its peer range names, beside typespec-hono 0.31.1: the worked example `cmp` 0
+with each; a bookshop declaring `POST /books/{bookId}/archive` before the book's create, every
+GraphQL document valid, the run against a server refusing a duplicate title exit 0 with each, 22
+assertions; 0.8.0's bookshop, exit 0, 18 assertions, and with no delete warned
+`graphql-create-repeated`, its run failing at `createBook` as warned; 36 collections of this
+package's fixtures compiled by 0.8.0 from npm and by the rehearsal 0.9.0, the same byte for byte but
+the new `test/chaining/actions.tsp`; the GraphQL fixtures compiled with typespec-http-graphql emitted
+too, by 0.9.0 under 0.4.1 and under 0.5.0, the same byte for byte; and the 66 `@typespec/http-specs`
+scenarios, compiled by 0.8.0 and by 0.9.0, the same byte for byte. With 0.8.0 the archive bookshop
+warns `variable-collision` twice, and its run fails at `archive`, which ran first, against a `bookId`
+nothing had set. pnpm finds no peer issue for 0.9.0 beside either, and an unmet peer for 0.8.0 beside
+0.5.0.
+
 ## Confirm the Postman app import
 
 `test/reference/lint.test.ts` already runs Postman's own `collection migrate` and `collection lint`
